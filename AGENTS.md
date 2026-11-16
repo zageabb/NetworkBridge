@@ -1,0 +1,3 @@
+# Agent instructions
+
+Follow Application-Standard conventions and use DEVELOPMENT.md as the authoritative task tracker. Keep README and deployment docs current. Never commit secrets, real router responses, MACs, client inventories or credentials. Router access must remain GET-only with strict endpoint allow-list. Do not execute router-generated JavaScript. Never claim per-device bandwidth from aggregate counters. Default to localhost binding and read-only operation. Keep tests green before merge; if CI is unavailable, disclose that and run independent local tests. Changes to permissions, authentication, device management or network exposure require explicit approval.
