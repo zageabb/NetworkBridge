@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 import time
-from urllib.parse import unquote
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
+from urllib.parse import unquote
 
 import httpx
 
@@ -92,9 +92,10 @@ async def poll_wan(collector: SmartHubCollector, callback, interval: float = 5.0
             counters = sample["counters"]
             uptime = sample["uptime"]
             rate = rates(previous, counters, started - previous_time) if previous and previous_time else None
-            if previous_uptime and uptime and str(uptime).isdigit() and str(previous_uptime).isdigit():
-                if int(str(uptime)) < int(str(previous_uptime)):
-                    rate = None
+            if (previous_uptime and uptime and str(uptime).isdigit()
+                    and str(previous_uptime).isdigit()
+                    and int(str(uptime)) < int(str(previous_uptime))):
+                rate = None
             await callback(sample, rate)
             previous, previous_time, previous_uptime = counters, started, uptime
         except (httpx.HTTPError, ValueError, ET.ParseError):
