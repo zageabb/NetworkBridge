@@ -1,0 +1,3 @@
+# Security
+
+This is a local-only monitoring project. The BT Smart Hub exposes sensitive remembered-device inventory without login. Never expose raw data to the public internet. API binds to 127.0.0.1 by default. UDA authentication is required before any private device or metric endpoints are made accessible through Caddy. Never store raw MACs by default: use keyed hashes with a secret outside the database. Redact hostnames and cookies from logs. Do not store public WAN IP, DNS, DHCP strings or link-local IPv6 by default. Use pinned router TLS fingerprint if normal verification fails; never globally disable TLS verification. Collectors must use only GET requests to explicit read-only allow-listed paths.
