@@ -1,5 +1,5 @@
 from networkbridge.router import Counters
-from networkbridge.storage import connect, add_wan_sample, recent_wan
+from networkbridge.storage import add_wan_sample, connect, recent_wan
 
 
 def test_wan_storage(tmp_path):
