@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from networkbridge.config import settings
@@ -31,7 +31,7 @@ async def run() -> None:
     collector = SmartHubCollector(settings.router_url)
 
     async def save(sample: dict, rate: tuple[float, float] | None) -> None:
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
         add_wan_sample(db, timestamp, sample, rate)
 
     try:
