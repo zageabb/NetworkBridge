@@ -1,0 +1,13 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="NETWORKBRIDGE_", extra="ignore")
+    host: str = "127.0.0.1"
+    port: int = 8765
+    database_url: str = "sqlite:///./networkbridge.db"
+    router_url: str = "https://192.168.1.254"
+    router_polling_enabled: bool = False
+
+
+settings = Settings()
