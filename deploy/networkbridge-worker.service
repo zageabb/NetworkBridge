@@ -1,0 +1,20 @@
+[Unit]
+Description=NetworkBridge monitoring worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=networkbridge
+Group=networkbridge
+WorkingDirectory=/var/lib/networkbridge
+EnvironmentFile=/etc/networkbridge/networkbridge.env
+ExecStart=/opt/networkbridge/.venv/bin/python -m networkbridge.worker
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/networkbridge
+
+[Install]
+WantedBy=multi-user.target
