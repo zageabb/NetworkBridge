@@ -1,0 +1,20 @@
+[Unit]
+Description=NetworkBridge API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=networkbridge
+Group=networkbridge
+WorkingDirectory=/opt/networkbridge
+EnvironmentFile=/etc/networkbridge/networkbridge.env
+ExecStart=/opt/networkbridge/.venv/bin/uvicorn networkbridge.api:app --host 127.0.0.1 --port 8765
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/networkbridge
+
+[Install]
+WantedBy=multi-user.target
