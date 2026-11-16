@@ -11,5 +11,5 @@ def test_health() -> None:
 
 def test_status_is_safe() -> None:
     payload = TestClient(app).get("/api/status").json()
-    assert payload["router_collection"] == "not_enabled"
+    assert payload["router_collection"] == "disabled"
     assert payload["devices"] == []
