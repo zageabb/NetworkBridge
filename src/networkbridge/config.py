@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,6 +10,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./networkbridge.db"
     router_url: str = "https://192.168.1.254"
     router_polling_enabled: bool = False
+    static_dir: Path = Path(__file__).resolve().parents[2] / "ui" / "dist"
 
 
 settings = Settings()

@@ -10,5 +10,6 @@ __pycache__/
 !.env.example
 node_modules/
 ui/dist/
+ui/tsconfig.tsbuildinfo
 *.log
 router-captures/

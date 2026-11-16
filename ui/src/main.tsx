@@ -5,7 +5,7 @@ import "./style.css";
 function App() {
   const [state, setState] = React.useState("Checking API…");
   React.useEffect(() => {
-    fetch("/api/health").then(r => {
+    fetch("./api/health").then(r => {
       if (!r.ok) throw Error("API unavailable");
       return r.json();
     }).then(d => setState(d.status)).catch(() => setState("API unavailable"));

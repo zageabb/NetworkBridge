@@ -9,7 +9,8 @@
 - [x] Ubuntu systemd example units
 - [ ] Run tests in CI and verify on Ubuntu
 - [ ] Complete UDA integration before exposing private endpoints
-- [ ] Production Caddy routing and built UI serving
+- [x] Built UI serving compatible with a stripped UDA path prefix
+- [ ] Production Caddy routing on the target UDA host
 
 ## Phase 2 — BT Smart Hub router
 - [ ] Establish read-only unauthenticated session
