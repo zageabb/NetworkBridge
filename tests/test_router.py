@@ -1,5 +1,6 @@
 import pytest
-from networkbridge.router import Counters, parse_counters, rates, parse_wan_xml
+
+from networkbridge.router import Counters, parse_counters, parse_wan_xml, rates
 
 
 def test_percent_encoded_counters():
