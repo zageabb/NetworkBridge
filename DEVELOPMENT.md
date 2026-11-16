@@ -7,10 +7,10 @@
 - [x] Configuration and local-only defaults
 - [x] Initial unit tests and CI workflow
 - [x] Ubuntu systemd example units
-- [ ] Run tests in CI and verify on Ubuntu
-- [ ] Complete UDA integration before exposing private endpoints
+- [x] Run tests in CI and verify on Ubuntu
+- [x] Complete UDA integration before exposing private endpoints
 - [x] Built UI serving compatible with a stripped UDA path prefix
-- [ ] Production Caddy routing on the target UDA host
+- [x] Production Caddy routing on the target UDA host
 
 ## Phase 2 — BT Smart Hub router
 - [ ] Establish read-only unauthenticated session
