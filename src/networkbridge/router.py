@@ -32,7 +32,8 @@ def parse_counters(raw: str) -> Counters:
 
 
 def rates(previous: Counters, current: Counters, elapsed: float) -> tuple[float, float] | None:
-    if elapsed <= 0 or current.received < previous.received or current.transmitted < previous.transmitted:
+    if (elapsed <= 0 or current.received < previous.received
+            or current.transmitted < previous.transmitted):
         return None
     return (8 * (current.received - previous.received) / elapsed,
             8 * (current.transmitted - previous.transmitted) / elapsed)
@@ -55,11 +56,10 @@ def parse_wan_xml(payload: str) -> dict[str, object]:
 
 
 class SmartHubCollector:
-    def __init__(self, url: str, fingerprint: str | None = None):
+    def __init__(self, url: str):
         if not url.startswith("https://"):
             raise ValueError("Router must use HTTPS")
         self.url = url.rstrip("/")
-        self.fingerprint = fingerprint
         self.client = httpx.AsyncClient(base_url=self.url, timeout=5.0, follow_redirects=False)
         self._initialized = False
 
