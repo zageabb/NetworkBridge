@@ -51,6 +51,7 @@ export function App() {
   const [status, setStatus] = React.useState("Unknown");
   const [wanError, setWanError] = React.useState("");
   const [history, setHistory] = React.useState<Sample[]>([]);
+  const [chartMinutes, setChartMinutes] = React.useState(5);
   const [server, setServer] = React.useState<ServerHealth | null>(null);
   const [services, setServices] = React.useState<Service[] | null>(null);
   const [environment, setEnvironment] = React.useState<Environment | null>(null);
@@ -129,6 +130,15 @@ export function App() {
     } catch (e) { setAliasMessage(e instanceof Error ? e.message : "Save failed"); }
   }
   const latest = history.at(-1);
+  const chartHistory = React.useMemo(() => {
+    const end = Date.parse(latest?.sampled_at ?? "");
+    if (!Number.isFinite(end)) return [];
+    const cutoff = end - chartMinutes * 60_000;
+    return history.filter(s => {
+      const timestamp = Date.parse(s.sampled_at);
+      return Number.isFinite(timestamp) && timestamp >= cutoff && timestamp <= end;
+    });
+  }, [history, latest?.sampled_at, chartMinutes]);
   const pct = (part: number, total: number) => total > 0 ? (part / total * 100).toFixed(1) + "%" : "—";
   const metric = (label: string, value: string) => <div className="metric" key={label}><span>{label}</span><strong>{value}</strong></div>;
   return <div className="shell">
@@ -146,7 +156,10 @@ export function App() {
           {metric("WAN link", latest?.connected ?? "Unknown")}
         </div>
         <section><h2>WAN throughput</h2><p>Aggregate traffic measured by the router; not per-device bandwidth.</p>
-          {loading ? <p>Loading history…</p> : wanError ? <div className="error" role="alert">{wanError}. WAN history could not be loaded.</div> : <Trend samples={history} />}</section>
+          <div className="chart-controls"><label htmlFor="wan-period">History window</label><select id="wan-period" value={chartMinutes} onChange={e => setChartMinutes(Number(e.target.value))}>
+            <option value={5}>Last 5 minutes</option><option value={15}>Last 15 minutes</option><option value={25}>Last 25 minutes</option>
+          </select><span>Times shown in your local timezone</span></div>
+          {loading ? <p>Loading history…</p> : wanError ? <div className="error" role="alert">{wanError}. WAN history could not be loaded.</div> : <><Trend samples={chartHistory} />{chartHistory.length > 0 && <p className="chart-range">{new Date(chartHistory[0].sampled_at).toLocaleTimeString()} – {new Date(chartHistory[chartHistory.length - 1].sampled_at).toLocaleTimeString()} · {chartHistory.length} samples</p>}</>}</section>
         {page === "WAN Traffic" && <section><h2>Recent measurements</h2><div className="table-wrap"><table><thead><tr><th>Time (UTC)</th><th>Download</th><th>Upload</th><th>Link</th></tr></thead><tbody>
           {history.slice(-50).reverse().map((s,i) => <tr key={s.sampled_at+i}><td>{s.sampled_at}</td><td>{speed(s.download_bps)}</td><td>{speed(s.upload_bps)}</td><td>{s.connected ?? "Unknown"}</td></tr>)}
           {!history.length && <tr><td colSpan={4}>{loading ? "Loading history…" : wanError || "No WAN measurements recorded yet."}</td></tr>}
