@@ -7,6 +7,15 @@ from pathlib import Path
 
 def connect(path: str | Path) -> sqlite3.Connection:
     db = sqlite3.connect(str(path))
+    try:
+        ensure_schema(db)
+    except sqlite3.Error:
+        db.close()
+        raise
+    return db
+
+
+def ensure_schema(db: sqlite3.Connection) -> None:
     db.execute("""CREATE TABLE IF NOT EXISTS wan_samples (
         id INTEGER PRIMARY KEY,
         sampled_at TEXT NOT NULL,
@@ -20,7 +29,6 @@ def connect(path: str | Path) -> sqlite3.Connection:
     )""")
     db.execute("CREATE INDEX IF NOT EXISTS idx_wan_sample_time ON wan_samples(sampled_at)")
     db.commit()
-    return db
 
 
 def add_wan_sample(db: sqlite3.Connection, sampled_at: str, sample: dict,
@@ -39,7 +47,15 @@ def add_wan_sample(db: sqlite3.Connection, sampled_at: str, sample: dict,
 def recent_wan(db: sqlite3.Connection, limit: int = 300) -> list[dict]:
     if not 1 <= limit <= 1000:
         raise ValueError("Limit must be 1..1000")
+    if not wan_schema_exists(db):
+        return []
     rows = db.execute("""SELECT sampled_at, connected, download_bps, upload_bps
         FROM wan_samples ORDER BY id DESC LIMIT ?""", (limit,)).fetchall()
     return [dict(zip(("sampled_at", "connected", "download_bps", "upload_bps"), row))
             for row in reversed(rows)]
+
+
+def wan_schema_exists(db: sqlite3.Connection) -> bool:
+    return db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='wan_samples'"
+    ).fetchone() is not None

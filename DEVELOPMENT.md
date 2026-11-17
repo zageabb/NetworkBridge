@@ -1,5 +1,20 @@
 # Development roadmap
 
+## WAN history initialisation fix — IN PROGRESS
+
+- Shared additive initialisation of WAN, observations, labels and remembered-device
+  tables at API and worker startup, independent of router polling.
+- Missing WAN tables return empty HTTP 200 history; actual storage failures retain
+  HTTP 503. Status separates collector, schema and measurement availability.
+- WAN page distinguishes empty history from unavailable storage and keeps API
+  health visible on WAN errors. `httpx` is a production dependency.
+- Implementation: `database.py`, `storage.py`, `api.py`, `worker.py`, `ui/src/App.tsx`.
+- Regression coverage: fresh installs with polling disabled, repeated startup and
+  preservation of observations/labels, missing tables, corrupt/inaccessible storage,
+  incompatible schemas, UI empty/error states and recovery.
+- Local validation: 59 Python tests, 2 React regression tests, Ruff and production
+  TypeScript/Vite build passed. CI and deployment evidence: pending. User acceptance: pending.
+
 ## Phase 1 — Foundation
 - [x] FastAPI health/status skeleton
 - [x] Independent asyncio worker skeleton

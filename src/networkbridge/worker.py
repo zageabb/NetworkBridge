@@ -3,30 +3,23 @@
 import asyncio
 import logging
 from datetime import UTC, datetime
-from pathlib import Path
 
 from networkbridge.config import settings
+from networkbridge.database import database_path, initialize_database
 from networkbridge.router import SmartHubCollector, poll_wan
 from networkbridge.storage import add_wan_sample, connect
 
 logger = logging.getLogger(__name__)
 
 
-def database_path(url: str) -> Path:
-    prefix = "sqlite:///"
-    if not url.startswith(prefix):
-        raise ValueError("Phase 2 worker requires a sqlite:/// database URL")
-    return Path(url[len(prefix):])
-
-
 async def run() -> None:
+    initialize_database(settings.database_url)
     if not settings.router_polling_enabled:
         logger.info("Router polling disabled; set NETWORKBRIDGE_ROUTER_POLLING_ENABLED=true")
         while True:
             await asyncio.sleep(60)
 
     path = database_path(settings.database_url)
-    path.parent.mkdir(parents=True, exist_ok=True)
     db = connect(path)
     collector = SmartHubCollector(settings.router_url)
 
