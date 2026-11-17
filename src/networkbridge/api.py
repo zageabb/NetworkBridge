@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from networkbridge.config import settings
 from networkbridge.storage import recent_wan
+from networkbridge.server import snapshot
 
 app = FastAPI(title="NetworkBridge", version="0.2.0", docs_url=None, redoc_url=None)
 
@@ -46,6 +47,14 @@ def wan_history(limit: int = 300) -> dict[str, object]:
     except sqlite3.Error:
         raise HTTPException(status_code=503, detail="WAN history unavailable") from None
     return {"samples": samples, "count": len(samples)}
+
+
+@app.get("/api/server/health")
+def server_health() -> dict:
+    try:
+        return snapshot()
+    except (OSError, ValueError, KeyError, IndexError):
+        raise HTTPException(status_code=503, detail="Server metrics unavailable") from None
 
 
 if settings.static_dir.is_dir():
