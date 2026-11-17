@@ -1,10 +1,11 @@
 import sqlite3
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from networkbridge.api import app
-from networkbridge.observations import recent_observations, record_scan
+from networkbridge.observations import observation_recency, recent_observations, record_scan
 
 
 def test_observations_positive_only_and_repeat():
@@ -29,3 +30,18 @@ def test_observations_api_disabled():
 
 def test_observations_limit():
     assert TestClient(app).get("/api/devices/observations?limit=501").status_code == 422
+
+
+def test_observation_recency_does_not_claim_online_status():
+    now = datetime(2026, 11, 17, 12, tzinfo=UTC)
+    rows = [
+        {"address": "192.0.2.1", "last_seen": "2026-11-17T11:50:00Z"},
+        {"address": "192.0.2.2", "last_seen": "2026-11-17T11:00:00Z"},
+        {"address": "192.0.2.3", "last_seen": "invalid"},
+    ]
+    result = observation_recency(rows, now)
+    assert [row["recency"] for row in result] == [
+        "recent_positive", "previously_observed", "unknown",
+    ]
+    assert result[0]["minutes_since_seen"] == 10.0
+    assert all("online" not in row for row in result)
