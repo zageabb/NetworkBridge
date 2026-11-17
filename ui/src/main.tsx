@@ -8,7 +8,7 @@ type Status = { router_collection: string };
 type ResourceAlert = { metric: string; percent: number; threshold: number; severity: string };
 type AlertsResponse = { alerts: ResourceAlert[]; count: number; mode: string };
 type DiscoveryResult = { devices: { address: string; state: string }[]; probed_hosts: number; note: string };
-type IdentifiedDevice = { address: string; mac: string | null; interface: string | null; last_positive_tcp: string | null; positive_scans: number; evidence: string[]; status: string };
+type IdentifiedDevice = { label: string | null; address: string; mac: string | null; interface: string | null; last_positive_tcp: string | null; positive_scans: number; evidence: string[]; status: string };
 type IdentifiedResponse = { devices: IdentifiedDevice[]; collection: string };
 type Observation = { address: string; first_seen: string; last_seen: string; positive_scans: number; source: string };
 type ObservationResponse = { devices: Observation[]; collection: string };
@@ -53,6 +53,9 @@ function App() {
   const [discoveryMessage, setDiscoveryMessage] = React.useState("");
   const [alerts, setAlerts] = React.useState<AlertsResponse | null>(null);
   const [deviceSearch, setDeviceSearch] = React.useState("");
+  const [editingMac, setEditingMac] = React.useState<string | null>(null);
+  const [aliasText, setAliasText] = React.useState("");
+  const [aliasMessage, setAliasMessage] = React.useState("");
   const [cpuUsage, setCpuUsage] = React.useState<number | null>(null);
   const previousCpu = React.useRef<{ total_ticks: number; idle_ticks: number } | null>(null);
   const [error, setError] = React.useState("");
@@ -98,6 +101,20 @@ function App() {
     } catch (e) { setDiscoveryMessage(e instanceof Error ? e.message : "Discovery unavailable"); }
     finally { setDiscovering(false); }
   }
+  async function saveDeviceAlias() {
+    if (!editingMac) return;
+    setAliasMessage("");
+    try {
+      const response = await fetch(api("devices/alias"), {
+        method: "PUT", headers: {"Content-Type": "application/json", "X-NetworkBridge-Action": "save-device-alias"},
+        body: JSON.stringify({mac: editingMac, label: aliasText})
+      });
+      if (!response.ok) throw new Error(response.status === 403 ? "Device label editing is disabled on the server." : "Could not save device label.");
+      const result = await fetch(api("devices/identified"));
+      if (result.ok) setIdentified(await result.json() as IdentifiedResponse);
+      setEditingMac(null); setAliasMessage("Device label saved.");
+    } catch (e) { setAliasMessage(e instanceof Error ? e.message : "Save failed"); }
+  }
   const latest = history.at(-1);
   const pct = (part: number, total: number) => total > 0 ? (part / total * 100).toFixed(1) + "%" : "—";
   const metric = (label: string, value: string) => <div className="metric" key={label}><span>{label}</span><strong>{value}</strong></div>;
@@ -142,10 +159,13 @@ function App() {
       {page === "Devices" && <><section><h2>Combined device evidence</h2><p>Current ARP MAC/interface data joined to historical positive TCP responses by IP address. IP addresses may be reassigned; this is not permanent identity or proof of online status.</p>
         <label htmlFor="device-search">Search devices</label>
         <input id="device-search" className="search" value={deviceSearch} onChange={e => setDeviceSearch(e.target.value)} placeholder="IP address, MAC or interface" />
-        <div className="table-wrap"><table><thead><tr><th>IP address</th><th>MAC</th><th>Interface</th><th>Evidence</th><th>Last TCP response</th></tr></thead><tbody>
-        {identified?.devices.filter(d => [d.address, d.mac, d.interface].some(v => (v ?? "").toLowerCase().includes(deviceSearch.toLowerCase()))).map(d => <tr key={d.address}><td>{d.address}</td><td>{d.mac ?? "—"}</td><td>{d.interface ?? "—"}</td><td>{d.evidence.join(", ")}</td><td>{d.last_positive_tcp ?? "—"}</td></tr>)}
-        {!identified?.devices.length && <tr><td colSpan={5}>No combined evidence yet. Enable discovery on the server.</td></tr>}
-        </tbody></table></div></section><section><h2>Active LAN discovery</h2><p>Optional, server-configured private-subnet TCP checks. This is an active network operation; only use it on networks you administer. Hosts with closed ports may be absent.</p>
+        <div className="table-wrap"><table><thead><tr><th>Label</th><th>IP address</th><th>MAC</th><th>Interface</th><th>Evidence</th><th>Last TCP response</th></tr></thead><tbody>
+        {identified?.devices.filter(d => [d.address, d.mac, d.interface, d.label].some(v => (v ?? "").toLowerCase().includes(deviceSearch.toLowerCase()))).map(d => <tr key={d.address}><td>{d.label ?? "Unnamed"} {d.mac && <button onClick={() => { setEditingMac(d.mac); setAliasText(d.label ?? ""); setAliasMessage(""); }}>Rename</button>}</td><td>{d.address}</td><td>{d.mac ?? "—"}</td><td>{d.interface ?? "—"}</td><td>{d.evidence.join(", ")}</td><td>{d.last_positive_tcp ?? "—"}</td></tr>)}
+        {!identified?.devices.length && <tr><td colSpan={6}>No combined evidence yet. Enable discovery on the server.</td></tr>}
+        </tbody></table></div>
+        {editingMac && <div><p>Set label for {editingMac}</p><label htmlFor="alias-label">Device label</label><input id="alias-label" value={aliasText} maxLength={80} onChange={e => setAliasText(e.target.value)} /><button onClick={() => void saveDeviceAlias()}>Save label</button><button onClick={() => setEditingMac(null)}>Cancel</button></div>}
+        {aliasMessage && <p role="status">{aliasMessage}</p>}
+        </section><section><h2>Active LAN discovery</h2><p>Optional, server-configured private-subnet TCP checks. This is an active network operation; only use it on networks you administer. Hosts with closed ports may be absent.</p>
         <button disabled={discovering} onClick={() => void discover()}>{discovering ? "Checking LAN…" : "Discover LAN devices"}</button>
         {discoveryMessage && <p role="status">{discoveryMessage}</p>}
         {discovered && <div className="table-wrap"><table><thead><tr><th>IP address</th><th>Result</th></tr></thead><tbody>

@@ -102,3 +102,15 @@ configured scope of /24. Loopback, link-local, carrier-grade NAT and reserved
 ranges are rejected even if an IP library considers them non-global. Discovery
 remains disabled by default, requires the deliberate UI action and is limited
 by concurrency and cooldown.
+
+## Local device labels (opt-in)
+
+Set `NETWORKBRIDGE_DEVICE_ALIAS_WRITES_ENABLED=true` only when the application
+is protected by UDA authentication and appropriate authorization. The custom
+request header is an intentional-action safeguard, **not authentication**.
+The Devices table permits saving a 1–80 character label against a currently
+observed MAC address using `PUT /api/devices/alias`. Labels persist in SQLite
+and are displayed only when a matching MAC is present in the current ARP cache.
+They do not attach to IP addresses, so DHCP changes do not carry labels to a
+new occupant. MAC addresses may also be spoofed or randomized, so labels are
+operator annotations, not a verified device identity.
