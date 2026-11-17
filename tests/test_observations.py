@@ -45,3 +45,25 @@ def test_observation_recency_does_not_claim_online_status():
     ]
     assert result[0]["minutes_since_seen"] == 10.0
     assert all("online" not in row for row in result)
+
+
+def test_configurable_recency_window():
+    now = datetime(2026, 11, 17, 12, tzinfo=UTC)
+    rows = [{"address": "192.0.2.1", "last_seen": "2026-11-17T11:40:00Z"}]
+    assert observation_recency(rows, now, recent_within_minutes=15)[0]["recency"] == "previously_observed"
+    assert observation_recency(rows, now, recent_within_minutes=30)[0]["recency"] == "recent_positive"
+
+
+def test_observations_api_uses_configured_window(tmp_path):
+    from networkbridge.config import settings
+
+    path = tmp_path / "observations.sqlite"
+    with sqlite3.connect(path) as db:
+        record_scan(db, [{"address": "192.0.2.5", "state": "tcp_reachable"}])
+    with patch.object(settings, "active_discovery_enabled", True), (
+        patch.object(settings, "database_url", "sqlite:///" + str(path))
+    ), patch.object(settings, "device_recency_minutes", 45):
+        response = TestClient(app).get("/api/devices/observations")
+    assert response.status_code == 200
+    assert response.json()["recency_window_minutes"] == 45
+    assert response.json()["devices"][0]["recency"] == "recent_positive"
