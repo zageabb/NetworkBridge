@@ -217,3 +217,12 @@ screen displays the 100 latest positive events. Existing summary observations
 are not backfilled into individual events; no negative/offline events are
 inferred, and no background scanning is introduced. Future retention controls
 should bound the event table for long-running installations.
+
+## Device event retention
+
+Set `NETWORKBRIDGE_DEVICE_EVENT_RETENTION_DAYS=30` to prune positive
+observation event rows older than 30 days after each **explicitly requested**
+LAN discovery scan. Allowed range is 0–3650 days; default `0` disables
+pruning and preserves existing data. This does not delete the per-IP device
+observation summary, run scheduled scans, or infer devices are offline.
+If no further manual scan occurs, expired rows remain until the next scan.
