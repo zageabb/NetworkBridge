@@ -17,8 +17,8 @@ from networkbridge.devices import list_devices
 from networkbridge.discovery import scan
 from networkbridge.environment import environment_report
 from networkbridge.identity import correlate
-from networkbridge.neighbours import neighbours
 from networkbridge.monitoring import monitoring_preflight
+from networkbridge.neighbours import neighbours
 from networkbridge.observations import (
     monitoring_readiness,
     observation_events,
