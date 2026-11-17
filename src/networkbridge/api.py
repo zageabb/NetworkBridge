@@ -21,7 +21,7 @@ from networkbridge.neighbours import neighbours
 from networkbridge.observations import recent_observations, record_scan
 from networkbridge.server import snapshot
 from networkbridge.services import check_services
-from networkbridge.storage import aggregated_wan, recent_wan, wan_schema_exists
+from networkbridge.storage import aggregated_wan, recent_wan, wan_schema_exists, wan_usage
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +103,21 @@ def wan_aggregated(hours: int = 1) -> dict[str, object]:
         raise HTTPException(status_code=503, detail="WAN aggregate history unavailable") from None
     return {"samples": samples, "count": len(samples), "hours": hours,
             "aggregation": "mean_valid_rate", "bucket_seconds": {1: 60, 24: 900, 168: 3600}[hours]}
+
+
+@app.get("/api/wan/usage")
+def wan_usage_totals() -> dict:
+    try:
+        path = database_path(settings.database_url)
+        if not path.is_file():
+            return {"day_received_bytes": 0, "day_transmitted_bytes": 0,
+                    "month_received_bytes": 0, "month_transmitted_bytes": 0,
+                    "accepted_intervals": 0, "skipped_intervals": 0,
+                    "coverage": "partial_estimate"}
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)) as db:
+            return wan_usage(db)
+    except (OSError, ValueError, sqlite3.Error):
+        raise HTTPException(status_code=503, detail="WAN usage unavailable") from None
 
 
 @app.get("/api/server/health")
