@@ -68,7 +68,21 @@ export function App() {
   const [discovered, setDiscovered] = React.useState<DiscoveryResult | null>(null);
   const [observations, setObservations] = React.useState<ObservationResponse | null>(null);
   const [observationEvents, setObservationEvents] = React.useState<ObservationEventsResponse | null>(null);
+  const [eventAddress, setEventAddress] = React.useState("");
+  const [eventLimit, setEventLimit] = React.useState(100);
+  const [eventHistoryError, setEventHistoryError] = React.useState("");
   const [identified, setIdentified] = React.useState<IdentifiedResponse | null>(null);
+  React.useEffect(() => {
+    let active = true;
+    const params = new URLSearchParams({ limit: String(eventLimit) });
+    if (eventAddress) params.set("address", eventAddress);
+    fetch(api("devices/observation-events?" + params.toString()))
+      .then(r => { if (!r.ok) throw new Error("Event history unavailable"); return r.json() as Promise<ObservationEventsResponse>; })
+      .then(data => { if (active) { setObservationEvents(data); setEventHistoryError(""); } })
+      .catch(() => { if (active) { setObservationEvents(null); setEventHistoryError("Could not load discovery event history."); } });
+    return () => { active = false; };
+  }, [eventAddress, eventLimit]);
+
   const [discovering, setDiscovering] = React.useState(false);
   const [discoveryMessage, setDiscoveryMessage] = React.useState("");
   const [alerts, setAlerts] = React.useState<AlertsResponse | null>(null);
@@ -84,7 +98,7 @@ export function App() {
     let active = true;
     async function refresh() {
       try {
-        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed, savedObservations, identifiedDevices, usageTotals, collectorState, eventHistory] = await Promise.all([
+        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed, savedObservations, identifiedDevices, usageTotals, collectorState] = await Promise.all([
           fetch(api("health")).then(r => { if (!r.ok) throw Error("Health API unavailable"); return r.json(); }),
           fetch(api("status")).then(r => { if (!r.ok) throw Error("Status API unavailable"); return r.json() as Promise<Status>; }),
           fetch(api("wan/history?limit=300")).then(async r => {
@@ -101,9 +115,9 @@ export function App() {
           fetch(api("devices/identified")).then(r => r.ok ? r.json() as Promise<IdentifiedResponse> : null).catch(() => null),
           fetch(api("wan/usage")).then(r => r.ok ? r.json() as Promise<Usage> : null).catch(() => null),
           fetch(api("wan/collector-health")).then(r => r.ok ? r.json() as Promise<CollectorHealth> : null).catch(() => null),
-          fetch(api("devices/observation-events?limit=100")).then(r => r.ok ? r.json() as Promise<ObservationEventsResponse> : null).catch(() => null),
+
         ]);
-        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.history?.samples ?? []); setWanError(w.error); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setObservations(savedObservations); setObservationEvents(eventHistory); setIdentified(identifiedDevices); setUsage(usageTotals); setCollectorHealth(collectorState); setError("");
+        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.history?.samples ?? []); setWanError(w.error); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setObservations(savedObservations); setIdentified(identifiedDevices); setUsage(usageTotals); setCollectorHealth(collectorState); setError("");
           if (host) { const old = previousCpu.current; const dt = host.cpu.total_ticks - (old?.total_ticks ?? host.cpu.total_ticks); const di = host.cpu.idle_ticks - (old?.idle_ticks ?? host.cpu.idle_ticks); setCpuUsage(old && dt > 0 && di >= 0 && di <= dt ? 100 * (1 - di / dt) : null); previousCpu.current = host.cpu; } else { previousCpu.current = null; setCpuUsage(null); } }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "API unavailable"); }
       finally { if (active) setLoading(false); }
@@ -249,6 +263,16 @@ export function App() {
         {observations?.devices.filter(d => d.address.includes(deviceSearch)).map(d => <tr key={d.address}><td>{d.address}</td><td>{d.first_seen}</td><td>{d.last_seen}</td><td>{d.positive_scans}</td><td>{d.recency === "recent_positive" ? `Seen in last ${observations?.recency_window_minutes ?? 15} min` : d.recency === "previously_observed" ? "Previously observed" : "Unknown"}{d.minutes_since_seen == null ? "" : ` (${d.minutes_since_seen} min ago)`}</td></tr>)}
         {!observations?.devices.length && <tr><td colSpan={5}>No successful active discovery observations stored yet.</td></tr>}
         </tbody></table></div></section><section><h2>Discovery event history</h2><p>Each row records a successful TCP probe during an explicitly requested scan. No automatic scans or offline events are generated.</p>
+        <label htmlFor="event-address">Filter by discovered IP address</label>
+        <select id="event-address" value={eventAddress} onChange={e => setEventAddress(e.target.value)}>
+          <option value="">All discovered devices</option>
+          {observations?.devices.map(d => <option key={d.address} value={d.address}>{d.address}</option>)}
+        </select>
+        <label htmlFor="event-limit">Maximum events</label>
+        <select id="event-limit" value={eventLimit} onChange={e => setEventLimit(Number(e.target.value))}>
+          <option value={25}>25</option><option value={100}>100</option><option value={250}>250</option><option value={500}>500</option>
+        </select>
+        {eventHistoryError && <p role="status">{eventHistoryError}</p>}
         <div className="table-wrap"><table><thead><tr><th>IP address</th><th>Observed at</th><th>Source</th></tr></thead><tbody>
           {observationEvents?.events.filter(d => d.address.includes(deviceSearch)).map((d, i) => <tr key={d.address + d.observed_at + i}><td>{d.address}</td><td>{d.observed_at}</td><td>{d.source}</td></tr>)}
           {!observationEvents?.events.length && <tr><td colSpan={3}>No positive discovery events stored yet.</td></tr>}

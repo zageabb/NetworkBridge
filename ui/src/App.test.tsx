@@ -57,3 +57,34 @@ test("database errors are distinct from empty history and clear on recovery", as
     interval.mockRestore();
   }
 });
+
+
+test("device history selector requests server-side IP filter and limit", async () => {
+  const urls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    urls.push(url);
+    const path = new URL(url).pathname;
+    if (path.endsWith("/health")) return new Response(JSON.stringify({ status: "ok" }));
+    if (path.endsWith("/status")) return new Response(JSON.stringify({ router_collection: "disabled", database: "initialized", wan_history: "no_measurements" }));
+    if (path.endsWith("/wan/history")) return new Response(JSON.stringify({ samples: [], count: 0 }));
+    if (path.endsWith("/devices/observations")) return new Response(JSON.stringify({
+      collection: "positive_tcp_observations",
+      devices: [{ address: "192.0.2.5", first_seen: "2026-11-17T12:00:00Z",
+        last_seen: "2026-11-17T12:00:00Z", positive_scans: 1,
+        recency: "previously_observed", minutes_since_seen: 60 }],
+    }));
+    if (path.endsWith("/devices/observation-events")) return new Response(JSON.stringify({ events: [], collection: "positive_tcp_events" }));
+    return new Response("{}", { status: 503 });
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Devices" }));
+  await screen.findByRole("option", { name: "192.0.2.5" });
+  fireEvent.change(screen.getByLabelText("Filter by discovered IP address"), { target: { value: "192.0.2.5" } });
+  fireEvent.change(screen.getByLabelText("Maximum events"), { target: { value: "25" } });
+  await waitFor(() => expect(urls.some(url => {
+    const parsed = new URL(url);
+    return parsed.pathname.endsWith("/devices/observation-events")
+      && parsed.searchParams.get("address") === "192.0.2.5"
+      && parsed.searchParams.get("limit") === "25";
+  })).toBe(true));
+});
