@@ -19,6 +19,7 @@ from networkbridge.environment import environment_report
 from networkbridge.identity import correlate
 from networkbridge.neighbours import neighbours
 from networkbridge.observations import (
+    monitoring_readiness,
     observation_events,
     observation_recency,
     prune_observation_events,
@@ -256,6 +257,28 @@ def observations(limit: int = 250) -> dict[str, object]:
             "collection": "positive_tcp_observations",
             "recency_window_minutes": settings.device_recency_minutes,
             "note": "Recency reflects last successful TCP probe, not current online status"}
+
+
+@app.get("/api/devices/monitoring-readiness")
+def device_monitoring_readiness() -> dict[str, object]:
+    if not settings.active_discovery_enabled:
+        return {"state": "disabled", "availability_verdict": "not_evaluated",
+                "alerts_enabled": False, "observed_addresses": 0}
+    path = database_path(settings.database_url)
+    if not path.is_file():
+        return {"state": "not_initialized", "availability_verdict": "not_evaluated",
+                "alerts_enabled": False, "observed_addresses": 0}
+    try:
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)) as db:
+            devices = recent_observations(db, 500)
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc):
+            return {"state": "not_initialized", "availability_verdict": "not_evaluated",
+                    "alerts_enabled": False, "observed_addresses": 0}
+        raise HTTPException(status_code=503, detail="Device monitoring readiness unavailable") from None
+    except (OSError, ValueError, sqlite3.Error):
+        raise HTTPException(status_code=503, detail="Device monitoring readiness unavailable") from None
+    return monitoring_readiness(devices, recent_within_minutes=settings.device_recency_minutes)
 
 
 @app.get("/api/devices/observation-events")

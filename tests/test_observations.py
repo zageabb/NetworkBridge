@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from networkbridge.api import app
 from networkbridge.observations import (
+    monitoring_readiness,
     observation_events,
     observation_recency,
     prune_observation_events,
@@ -124,3 +125,28 @@ def test_device_event_retention_rejects_invalid_values():
                 prune_observation_events(db, days)
         with pytest.raises(ValueError):
             prune_observation_events(db, 30, datetime(2026, 11, 17))
+
+
+def test_monitoring_readiness_never_claims_offline():
+    now = datetime(2026, 11, 17, 12, tzinfo=UTC)
+    devices = [
+        {"address": "192.0.2.1", "last_seen": "2026-11-17T11:55:00Z"},
+        {"address": "192.0.2.2", "last_seen": "2026-11-16T11:55:00Z"},
+        {"address": "192.0.2.3", "last_seen": "invalid"},
+    ]
+    result = monitoring_readiness(devices, now, 15)
+    assert result["observed_addresses"] == 3
+    assert result["recent_positive"] == 1
+    assert result["previously_observed"] == 1
+    assert result["unknown_timestamp"] == 1
+    assert result["availability_verdict"] == "not_evaluated"
+    assert result["alerts_enabled"] is False
+    assert monitoring_readiness([], now)["state"] == "no_observations"
+
+
+def test_monitoring_readiness_api_disabled():
+    with patch("networkbridge.api.settings.active_discovery_enabled", False):
+        response = TestClient(app).get("/api/devices/monitoring-readiness")
+    assert response.status_code == 200
+    assert response.json()["state"] == "disabled"
+    assert response.json()["availability_verdict"] == "not_evaluated"

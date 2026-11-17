@@ -234,3 +234,13 @@ The Devices screen offers a discovered-IP selector and history limits of 25,
 `/api/devices/observation-events` endpoint so selection is not restricted to
 the initially displayed 100 events. The selector uses recorded IP addresses,
 not persistent device identities; addresses can be reassigned.
+
+## Device monitoring readiness (no alerts yet)
+
+The read-only `GET /api/devices/monitoring-readiness` endpoint summarises
+recent positive, historical positive, and unknown-timestamp observations.
+It reports `availability_verdict=not_evaluated` and
+`alerts_enabled=false`. No online/offline status is inferred from historical
+TCP evidence. Discovery remains manually initiated and opt-in. Future active
+monitoring must define explicit targets, frequency, repeated failures,
+maintenance windows, and alert opt-in before generating outage warnings.

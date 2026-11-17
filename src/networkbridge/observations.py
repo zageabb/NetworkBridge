@@ -120,3 +120,24 @@ def prune_observation_events(db: sqlite3.Connection, retention_days: int,
     )
     db.commit()
     return cursor.rowcount
+
+
+def monitoring_readiness(devices: list[dict[str, object]],
+                         now: datetime | None = None,
+                         recent_within_minutes: int = 15) -> dict[str, object]:
+    """Summarise observation coverage, not device availability or outage status."""
+    annotated = observation_recency(devices, now, recent_within_minutes)
+    counts = {"recent_positive": 0, "previously_observed": 0, "unknown": 0}
+    for row in annotated:
+        counts[str(row["recency"])] += 1
+    return {
+        "state": "no_observations" if not annotated else "observations_available",
+        "observed_addresses": len(annotated),
+        "recent_positive": counts["recent_positive"],
+        "previously_observed": counts["previously_observed"],
+        "unknown_timestamp": counts["unknown"],
+        "recency_window_minutes": recent_within_minutes,
+        "availability_verdict": "not_evaluated",
+        "alerts_enabled": False,
+        "note": "Historical TCP evidence cannot establish whether a device is offline.",
+    }
