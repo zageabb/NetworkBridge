@@ -242,8 +242,9 @@ def observations(limit: int = 250) -> dict[str, object]:
         if "no such table" in str(exc):
             return {"devices": [], "collection": "not_initialized"}
         raise HTTPException(status_code=503, detail="Observations unavailable") from None
-    return {"devices": observation_recency(devices), "collection": "positive_tcp_observations",
-            "recency_window_minutes": 15,
+    return {"devices": observation_recency(devices, recent_within_minutes=settings.device_recency_minutes),
+            "collection": "positive_tcp_observations",
+            "recency_window_minutes": settings.device_recency_minutes,
             "note": "Recency reflects last successful TCP probe, not current online status"}
 
 
