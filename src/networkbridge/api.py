@@ -4,8 +4,8 @@ import sqlite3
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
-from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from networkbridge.alerts import evaluate
 from networkbridge.aliases import ensure_schema as ensure_alias_schema
