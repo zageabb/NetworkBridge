@@ -160,3 +160,16 @@ returning mean download/upload rates and the contributing sample count.
 Only existing samples are shown: gaps are not synthesized and mean rates
 are not billed data usage totals. History is limited to retained raw samples;
 no retention or automatic downsampling policy is implemented yet.
+
+## Optional WAN sample retention
+
+WAN sample deletion is **disabled by default**. To limit raw WAN history growth,
+set `NETWORKBRIDGE_WAN_RETENTION_DAYS=30` in the independent polling worker's
+environment and restart it. Valid values are 0 (off) through 3650 days. When
+polling successfully writes a sample, the worker removes samples older than the
+configured period at most once per UTC day and logs the deleted row count.
+This is destructive for expired samples; back up SQLite before enabling. Keep
+at least seven days if you need the full 7-day WAN chart. This does not delete
+device observations, labels or other tables. SQLite may retain freed disk pages
+until a separately scheduled, maintenance-window VACUUM; no automatic VACUUM
+runs during polling.
