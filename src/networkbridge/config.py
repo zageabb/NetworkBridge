@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     router_url: str = "https://192.168.1.254"
     router_polling_enabled: bool = False
     neighbour_discovery_enabled: bool = False
+    device_alias_writes_enabled: bool = False
     active_discovery_enabled: bool = False
     active_discovery_cidr: str = ""
     memory_alert_percent: float = 85.0
