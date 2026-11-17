@@ -14,6 +14,7 @@ type IdentifiedResponse = { devices: IdentifiedDevice[]; collection: string };
 type Observation = { address: string; first_seen: string; last_seen: string; positive_scans: number; source: string; recency: string; minutes_since_seen: number | null };
 type ObservationEvent = { address: string; observed_at: string; source: string };
 type ObservationEventsResponse = { events: ObservationEvent[]; collection: string };
+type MonitoringReadiness = { state: string; observed_addresses: number; recent_positive?: number; previously_observed?: number; unknown_timestamp?: number; availability_verdict: string; alerts_enabled: boolean };
 type ObservationResponse = { devices: Observation[]; collection: string; recency_window_minutes?: number };
 type Neighbour = { name: string; address: string; mac: string; interface: string; source: string; state: string };
 type NeighboursResponse = { devices: Neighbour[]; collection: string; source: string };
@@ -67,6 +68,7 @@ export function App() {
   const [neighbours, setNeighbours] = React.useState<NeighboursResponse | null>(null);
   const [discovered, setDiscovered] = React.useState<DiscoveryResult | null>(null);
   const [observations, setObservations] = React.useState<ObservationResponse | null>(null);
+  const [monitoringReadiness, setMonitoringReadiness] = React.useState<MonitoringReadiness | null>(null);
   const [observationEvents, setObservationEvents] = React.useState<ObservationEventsResponse | null>(null);
   const [eventAddress, setEventAddress] = React.useState("");
   const [eventLimit, setEventLimit] = React.useState(100);
@@ -98,7 +100,7 @@ export function App() {
     let active = true;
     async function refresh() {
       try {
-        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed, savedObservations, identifiedDevices, usageTotals, collectorState] = await Promise.all([
+        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed, savedObservations, identifiedDevices, usageTotals, collectorState, monitoringState] = await Promise.all([
           fetch(api("health")).then(r => { if (!r.ok) throw Error("Health API unavailable"); return r.json(); }),
           fetch(api("status")).then(r => { if (!r.ok) throw Error("Status API unavailable"); return r.json() as Promise<Status>; }),
           fetch(api("wan/history?limit=300")).then(async r => {
@@ -115,9 +117,10 @@ export function App() {
           fetch(api("devices/identified")).then(r => r.ok ? r.json() as Promise<IdentifiedResponse> : null).catch(() => null),
           fetch(api("wan/usage")).then(r => r.ok ? r.json() as Promise<Usage> : null).catch(() => null),
           fetch(api("wan/collector-health")).then(r => r.ok ? r.json() as Promise<CollectorHealth> : null).catch(() => null),
+          fetch(api("devices/monitoring-readiness")).then(r => r.ok ? r.json() as Promise<MonitoringReadiness> : null).catch(() => null),
 
         ]);
-        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.history?.samples ?? []); setWanError(w.error); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setObservations(savedObservations); setIdentified(identifiedDevices); setUsage(usageTotals); setCollectorHealth(collectorState); setError("");
+        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.history?.samples ?? []); setWanError(w.error); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setObservations(savedObservations); setMonitoringReadiness(monitoringState); setIdentified(identifiedDevices); setUsage(usageTotals); setCollectorHealth(collectorState); setError("");
           if (host) { const old = previousCpu.current; const dt = host.cpu.total_ticks - (old?.total_ticks ?? host.cpu.total_ticks); const di = host.cpu.idle_ticks - (old?.idle_ticks ?? host.cpu.idle_ticks); setCpuUsage(old && dt > 0 && di >= 0 && di <= dt ? 100 * (1 - di / dt) : null); previousCpu.current = host.cpu; } else { previousCpu.current = null; setCpuUsage(null); } }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "API unavailable"); }
       finally { if (active) setLoading(false); }
@@ -242,7 +245,11 @@ export function App() {
           ["Monitoring", environment.monitoring_mode],
         ] as [string,string][]).map(([name,value]) => <tr key={name}><th scope="row">{name}</th><td>{value}</td></tr>)}</tbody></table></div>
         : <div className="empty">Environment inventory unavailable.</div>}</section>}
-      {page === "Devices" && <><section><h2>Combined device evidence</h2><p>Current ARP MAC/interface data joined to historical positive TCP responses by IP address. IP addresses may be reassigned; this is not permanent identity or proof of online status.</p>
+      {page === "Devices" && <><section><h2>Device monitoring readiness</h2>
+        <p>Observation evidence only. Availability checks and device alerts are not enabled; an old observation does not mean a device is offline.</p>
+        <p>State: {monitoringReadiness?.state ?? "unavailable"} · Observed addresses: {monitoringReadiness?.observed_addresses ?? "—"} · Recent positive: {monitoringReadiness?.recent_positive ?? "—"} · Historical: {monitoringReadiness?.previously_observed ?? "—"}</p>
+        <p>Availability verdict: {monitoringReadiness?.availability_verdict ?? "not evaluated"} · Alerts: {monitoringReadiness?.alerts_enabled ? "enabled" : "disabled"}</p>
+        </section><section><h2>Combined device evidence</h2><p>Current ARP MAC/interface data joined to historical positive TCP responses by IP address. IP addresses may be reassigned; this is not permanent identity or proof of online status.</p>
         <label htmlFor="device-search">Search devices</label>
         <input id="device-search" className="search" value={deviceSearch} onChange={e => setDeviceSearch(e.target.value)} placeholder="IP address, MAC or interface" />
         <div className="table-wrap"><table><thead><tr><th>Label</th><th>IP address</th><th>MAC</th><th>Interface</th><th>Evidence</th><th>Last TCP response</th></tr></thead><tbody>
