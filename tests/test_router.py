@@ -28,6 +28,30 @@ def test_xml():
     assert result["counters"].received == 200
 
 
+def test_live_shaped_xml_uses_active_wan_counter_group():
+    payload = """<status>
+        <wan_conn_volume_list type="list"
+            value="[['0%3B0%3B0'], ['300%3B200%3B100'], ['0%3B0%3B0'], null]"/>
+        <wan_active_idx value="1"/>
+        <sysuptime value="120"/>
+        <link_status value="connected%3Bvdsl%3B19838"/>
+        <status_rate value="18.6 Mbps%3B4.4 Mbps"/>
+    </status>"""
+    result = parse_wan_xml(payload)
+    assert result["counters"] == Counters(300, 200, 100)
+    assert result["uptime"] == "120"
+    assert result["link_status"] == "connected"
+
+
+def test_live_shaped_xml_rejects_invalid_active_index():
+    payload = """<status>
+        <wan_conn_volume_list value="[['300%3B200%3B100']]"/>
+        <wan_active_idx value="5"/>
+    </status>"""
+    with pytest.raises(ValueError, match="active WAN counter index"):
+        parse_wan_xml(payload)
+
+
 def test_collector_rejects_missing_pinned_certificate(tmp_path):
     with pytest.raises(ValueError, match="certificate is not a file"):
         SmartHubCollector("https://192.168.1.254", tmp_path / "missing.pem")

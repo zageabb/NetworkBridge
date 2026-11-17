@@ -15,4 +15,9 @@ checks. Confirm its SHA-256 fingerprint out of band before installation. Replace
 the pin deliberately when the router certificate changes. Never disable TLS
 verification to work around a certificate failure.
 
+The WAN XML parser supports both the synthetic attribute form used by older
+fixtures and the BT Hub's node/value form. For the live list response it reads
+only the counter group selected by `wan_active_idx`; it parses the encoded
+counter text as data and never evaluates router-supplied JavaScript.
+
 This increment does not parse client inventory, serve history via the web API, or create a real-time dashboard. It has no access to per-device bandwidth.

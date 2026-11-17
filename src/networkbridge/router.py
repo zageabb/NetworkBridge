@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import ssl
 import time
 import xml.etree.ElementTree as ET
@@ -46,14 +47,30 @@ def parse_wan_xml(payload: str) -> dict[str, object]:
         raise ValueError("WAN response too large")
     root = ET.fromstring(payload)
     fields = {}
+    allowed = {
+        "wan_conn_volume_list", "wan_active_idx", "sysuptime", "link_status", "status_rate"
+    }
     for node in root.iter():
         for key, value in node.attrib.items():
-            if key in {"wan_conn_volume_list", "sysuptime", "link_status", "status_rate"}:
+            if key in allowed:
                 fields[key] = value
+        if node.tag in allowed and "value" in node.attrib:
+            fields[node.tag] = node.attrib["value"]
     if "wan_conn_volume_list" not in fields:
         raise ValueError("Missing WAN counters")
-    return {"counters": parse_counters(str(fields["wan_conn_volume_list"]).split(",")[0]),
-            "uptime": fields.get("sysuptime"), "link_status": fields.get("link_status"),
+    raw_counters = unquote(str(fields["wan_conn_volume_list"]))
+    counter_groups = re.findall(r"['\"]([^'\"]+)['\"]", raw_counters)
+    if counter_groups:
+        try:
+            active_index = int(str(fields.get("wan_active_idx", "0")))
+            raw_counters = counter_groups[active_index]
+        except (ValueError, IndexError):
+            raise ValueError("Invalid active WAN counter index") from None
+    else:
+        raw_counters = raw_counters.split(",")[0]
+    link_status = unquote(str(fields.get("link_status", ""))).split(";", 1)[0] or None
+    return {"counters": parse_counters(raw_counters),
+            "uptime": fields.get("sysuptime"), "link_status": link_status,
             "negotiated_rate": fields.get("status_rate")}
 
 
