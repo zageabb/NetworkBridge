@@ -4,9 +4,12 @@ import sqlite3
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException
+from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 
 from networkbridge.alerts import evaluate
+from networkbridge.aliases import ensure_schema as ensure_alias_schema
+from networkbridge.aliases import list_aliases, save_alias
 from networkbridge.config import settings
 from networkbridge.devices import list_devices
 from networkbridge.discovery import scan
@@ -19,6 +22,11 @@ from networkbridge.services import check_services
 from networkbridge.storage import recent_wan
 
 app = FastAPI(title="NetworkBridge", version="0.2.0", docs_url=None, redoc_url=None)
+
+
+class AliasUpdate(BaseModel):
+    mac: str
+    label: str
 
 
 def database_path(url: str) -> Path:
@@ -182,8 +190,43 @@ def identified_devices(limit: int = 250) -> dict[str, object]:
             arp = neighbours(limit=500)
         except (OSError, ValueError):
             raise HTTPException(status_code=503, detail="Neighbour cache unavailable") from None
-    return {"devices": correlate(observed, arp, limit), "collection": "correlated_evidence",
+    identified = correlate(observed, arp, limit)
+    path = database_path(settings.database_url)
+    if path.is_file():
+        try:
+            with sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2) as db:
+                labels = list_aliases(db)
+        except sqlite3.OperationalError as exc:
+            if "no such table" not in str(exc):
+                raise HTTPException(status_code=503, detail="Device labels unavailable") from None
+            labels = {}
+    else:
+        labels = {}
+    for item in identified:
+        item["label"] = labels.get(item["mac"]) if item["mac"] else None
+    return {"devices": identified, "collection": "correlated_evidence",
             "note": "ARP and historical TCP IP joins do not establish permanent device identity"}
+
+
+@app.put("/api/devices/alias")
+def update_device_alias(
+    body: AliasUpdate,
+    x_networkbridge_action: str | None = Header(default=None),
+) -> dict[str, str]:
+    if not settings.device_alias_writes_enabled:
+        raise HTTPException(status_code=403, detail="Device alias writes disabled")
+    if x_networkbridge_action != "save-device-alias":
+        raise HTTPException(status_code=403, detail="Explicit device alias action required")
+    try:
+        path = database_path(settings.database_url)
+        with sqlite3.connect(path, timeout=2) as db:
+            ensure_alias_schema(db)
+            save_alias(db, body.mac, body.label)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    except (sqlite3.Error, OSError):
+        raise HTTPException(status_code=503, detail="Device alias storage unavailable") from None
+    return {"status": "saved"}
 
 
 if settings.static_dir.is_dir():
