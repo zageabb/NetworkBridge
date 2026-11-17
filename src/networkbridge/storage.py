@@ -128,7 +128,7 @@ def wan_usage(db: sqlite3.Connection, now: datetime | None = None) -> dict:
     ).fetchall()
     previous = None
     for raw_time, uptime, received, transmitted in rows:
-        timestamp = datetime.fromisoformat(raw_time.replace("Z", "+00:00"))
+        timestamp = datetime.fromisoformat(raw_time)
         if timestamp.tzinfo is None:
             result["skipped_intervals"] += 1
             previous = None
