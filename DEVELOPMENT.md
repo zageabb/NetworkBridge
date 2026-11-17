@@ -27,8 +27,16 @@
 - Add opt-in trust for an explicitly verified router certificate while retaining
   certificate expiry and hostname/IP validation.
 - Keep system CA verification as the default and reject missing certificate files.
-- Local validation: 62 Python tests, Ruff, 2 React regression tests and the
+- Local validation: 64 Python tests, Ruff, 2 React regression tests and the
   production TypeScript/Vite build pass. Ubuntu deployment and live sample evidence: pending.
+
+## Live BT Hub WAN response parser — AWAITING ACCEPTANCE
+
+- Support the router's node/value XML shape and select its active WAN counter group
+  using `wan_active_idx`, without executing router-supplied content.
+- Preserve support for the existing synthetic attribute-shaped fixtures.
+- Local validation is included in the 64-test suite above. Ubuntu sample and rate
+  verification and deployment evidence: pending.
 
 ## Phase 1 — Foundation
 - [x] FastAPI health/status skeleton
