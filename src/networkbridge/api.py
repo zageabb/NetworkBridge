@@ -21,7 +21,13 @@ from networkbridge.neighbours import neighbours
 from networkbridge.observations import recent_observations, record_scan
 from networkbridge.server import snapshot
 from networkbridge.services import check_services
-from networkbridge.storage import aggregated_wan, recent_wan, wan_freshness, wan_schema_exists, wan_usage
+from networkbridge.storage import (
+    aggregated_wan,
+    recent_wan,
+    wan_freshness,
+    wan_schema_exists,
+    wan_usage,
+)
 
 logger = logging.getLogger(__name__)
 
