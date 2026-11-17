@@ -10,6 +10,7 @@ from networkbridge.storage import (
     prune_wan_samples,
     recent_wan,
     wan_usage,
+    wan_freshness,
 )
 
 
@@ -107,4 +108,17 @@ def test_usage_skips_long_gaps(tmp_path):
     result = wan_usage(db, datetime(2026, 11, 17, 12, tzinfo=UTC))
     assert result["day_received_bytes"] == 0
     assert result["skipped_intervals"] == 1
+    db.close()
+
+
+def test_collector_freshness_states(tmp_path):
+    db = connect(tmp_path / "freshness.sqlite")
+    now = datetime(2026, 11, 17, 12, tzinfo=UTC)
+    assert wan_freshness(db, now)["state"] == "no_measurements"
+    sample = {"counters": Counters(300, 200, 100)}
+    add_wan_sample(db, "2026-11-17T11:59:50Z", sample, (1.0, 2.0))
+    assert wan_freshness(db, now)["state"] == "fresh"
+    assert wan_freshness(db, now + timedelta(seconds=31))["state"] == "stale"
+    with pytest.raises(ValueError):
+        wan_freshness(db, now, 0)
     db.close()
