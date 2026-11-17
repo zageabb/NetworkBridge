@@ -15,8 +15,12 @@
 - Local validation: 59 Python tests, 2 React regression tests, Ruff and production
   TypeScript/Vite build passed. GitHub CI passed for implementation commit `00a0c9f`
   ([run](https://github.com/zageabb/NetworkBridge/actions/runs/44108699325)).
-- Review and Ubuntu deployment verification are tracked in
-  [PR #16](https://github.com/zageabb/NetworkBridge/pull/16). User acceptance: pending.
+- Merged in [PR #16](https://github.com/zageabb/NetworkBridge/pull/16) as `ad5a2e4`.
+  UDA deployed that commit on 2026-11-17. Live verification: health HTTP 200;
+  WAN history HTTP 200 with zero samples; status reports polling `disabled`, database
+  `initialized`, history `no_measurements`; API and worker active with zero restarts;
+  all 8 device observations and 1 saved alias preserved; SQLite quick check passed.
+  A pre-deployment SQLite backup is retained on the Ubuntu host. User acceptance: pending.
 
 ## Phase 1 — Foundation
 - [x] FastAPI health/status skeleton
