@@ -4,7 +4,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from networkbridge.api import app
-from networkbridge.observations import record_scan, recent_observations
+from networkbridge.observations import recent_observations, record_scan
 
 
 def test_observations_positive_only_and_repeat():
