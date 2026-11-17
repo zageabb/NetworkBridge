@@ -59,3 +59,27 @@ def wan_schema_exists(db: sqlite3.Connection) -> bool:
     return db.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='wan_samples'"
     ).fetchone() is not None
+
+
+def aggregated_wan(db: sqlite3.Connection, hours: int) -> list[dict]:
+    """Average valid WAN rates in UTC buckets; missing buckets remain gaps."""
+    if hours not in (1, 24, 168):
+        raise ValueError("Supported windows are 1, 24 and 168 hours")
+    if not wan_schema_exists(db):
+        return []
+    bucket_seconds = {1: 60, 24: 900, 168: 3600}[hours]
+    rows = db.execute(
+        """SELECT (CAST(strftime('%s', sampled_at) AS INTEGER) / ?) * ? AS bucket,
+                  AVG(download_bps), AVG(upload_bps), COUNT(*)
+           FROM wan_samples
+           WHERE strftime('%s', sampled_at) >= strftime('%s', 'now') - ?
+             AND download_bps IS NOT NULL AND upload_bps IS NOT NULL
+           GROUP BY bucket ORDER BY bucket""",
+        (bucket_seconds, bucket_seconds, hours * 3600),
+    ).fetchall()
+    return [
+        {"sampled_at": __import__("datetime").datetime.fromtimestamp(
+            bucket, tz=__import__("datetime").timezone.utc
+        ).isoformat(), "download_bps": down, "upload_bps": up, "sample_count": count}
+        for bucket, down, up, count in rows
+    ]
