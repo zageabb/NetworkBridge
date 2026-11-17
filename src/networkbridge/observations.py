@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def ensure_schema(db: sqlite3.Connection) -> None:
@@ -20,7 +20,7 @@ def ensure_schema(db: sqlite3.Connection) -> None:
 def record_scan(db: sqlite3.Connection, devices: list[dict[str, str]]) -> None:
     """Only positive observations are persisted. Missing hosts are NOT marked offline."""
     ensure_schema(db)
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
     for device in devices:
         if device.get("state") != "tcp_reachable":
             continue
