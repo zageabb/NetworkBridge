@@ -9,8 +9,8 @@ from networkbridge.storage import (
     connect,
     prune_wan_samples,
     recent_wan,
-    wan_usage,
     wan_freshness,
+    wan_usage,
 )
 
 
