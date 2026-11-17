@@ -1,7 +1,7 @@
+import logging
 from pathlib import Path
 
 import httpx
-import logging
 import pytest
 
 from networkbridge.router import Counters, PollDiagnostics, SmartHubCollector, parse_counters, parse_wan_xml, rates
