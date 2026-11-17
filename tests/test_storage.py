@@ -3,7 +3,13 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from networkbridge.router import Counters
-from networkbridge.storage import add_wan_sample, aggregated_wan, connect, recent_wan
+from networkbridge.storage import (
+    add_wan_sample,
+    aggregated_wan,
+    connect,
+    prune_wan_samples,
+    recent_wan,
+)
 
 
 def test_wan_storage(tmp_path):
@@ -38,4 +44,33 @@ def test_aggregated_wan_missing_table_and_invalid_window(tmp_path):
     assert aggregated_wan(db, 24) == []
     with pytest.raises(ValueError):
         aggregated_wan(db, 2)
+    db.close()
+
+
+def test_retention_disabled_preserves_all_rows(tmp_path):
+    db = connect(tmp_path / "retention.sqlite")
+    sample = {"counters": Counters(300, 200, 100)}
+    add_wan_sample(db, "2020-01-01T00:00:00Z", sample, (1.0, 2.0))
+    assert prune_wan_samples(db, 0, datetime(2026, 11, 17, tzinfo=UTC)) == 0
+    assert len(recent_wan(db)) == 1
+    db.close()
+
+
+def test_retention_removes_only_expired_rows(tmp_path):
+    db = connect(tmp_path / "retention.sqlite")
+    sample = {"counters": Counters(300, 200, 100)}
+    add_wan_sample(db, "2026-11-01T00:00:00Z", sample, (1.0, 2.0))
+    add_wan_sample(db, "2026-11-16T00:00:00+00:00", sample, (3.0, 4.0))
+    assert prune_wan_samples(db, 7, datetime(2026, 11, 17, tzinfo=UTC)) == 1
+    assert len(recent_wan(db)) == 1
+    assert recent_wan(db)[0]["download_bps"] == 3.0
+    db.close()
+
+
+def test_retention_rejects_invalid_period(tmp_path):
+    db = connect(tmp_path / "retention.sqlite")
+    with pytest.raises(ValueError):
+        prune_wan_samples(db, -1)
+    with pytest.raises(ValueError):
+        prune_wan_samples(db, 3651)
     db.close()

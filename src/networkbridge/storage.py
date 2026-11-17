@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 
@@ -82,3 +82,21 @@ def aggregated_wan(db: sqlite3.Connection, hours: int) -> list[dict]:
         {"sampled_at": datetime.fromtimestamp(bucket, tz=UTC).isoformat(), "download_bps": down, "upload_bps": up, "sample_count": count}
         for bucket, down, up, count in rows
     ]
+
+
+def prune_wan_samples(db: sqlite3.Connection, retention_days: int,
+                      now: datetime | None = None) -> int:
+    """Delete expired WAN samples only when retention is explicitly enabled."""
+    if not 0 <= retention_days <= 3650:
+        raise ValueError("retention_days must be between 0 and 3650")
+    if retention_days == 0 or not wan_schema_exists(db):
+        return 0
+    current = now or datetime.now(UTC)
+    if current.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    cutoff = (current.astimezone(UTC) - timedelta(days=retention_days)).isoformat()
+    cursor = db.execute(
+        "DELETE FROM wan_samples WHERE julianday(sampled_at) < julianday(?)", (cutoff,)
+    )
+    db.commit()
+    return cursor.rowcount
