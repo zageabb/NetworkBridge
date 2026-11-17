@@ -5,7 +5,12 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from networkbridge.api import app
-from networkbridge.observations import observation_recency, recent_observations, record_scan
+from networkbridge.observations import (
+    observation_events,
+    observation_recency,
+    recent_observations,
+    record_scan,
+)
 
 
 def test_observations_positive_only_and_repeat():
@@ -67,3 +72,23 @@ def test_observations_api_uses_configured_window(tmp_path):
     assert response.status_code == 200
     assert response.json()["recency_window_minutes"] == 45
     assert response.json()["devices"][0]["recency"] == "recent_positive"
+
+
+def test_positive_observation_events_preserve_each_scan():
+    with sqlite3.connect(":memory:") as db:
+        record_scan(db, [{"address": "192.0.2.5", "state": "tcp_reachable"},
+                         {"address": "192.0.2.6", "state": "unknown"}])
+        record_scan(db, [{"address": "192.0.2.5", "state": "tcp_reachable"}])
+        events = observation_events(db)
+        assert len(events) == 2
+        assert all(e["address"] == "192.0.2.5" for e in events)
+        assert len(observation_events(db, address="192.0.2.6")) == 0
+        assert len(observation_events(db, limit=1)) == 1
+
+
+def test_observation_events_api_disabled_and_invalid_limit():
+    with patch("networkbridge.api.settings.active_discovery_enabled", False):
+        response = TestClient(app).get("/api/devices/observation-events")
+    assert response.status_code == 200
+    assert response.json()["collection"] == "disabled"
+    assert TestClient(app).get("/api/devices/observation-events?limit=501").status_code == 422
