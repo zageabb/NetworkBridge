@@ -1,6 +1,6 @@
 # Development roadmap
 
-## WAN history initialisation fix — IN PROGRESS
+## WAN history initialisation fix — AWAITING ACCEPTANCE
 
 - Shared additive initialisation of WAN, observations, labels and remembered-device
   tables at API and worker startup, independent of router polling.
@@ -13,7 +13,10 @@
   preservation of observations/labels, missing tables, corrupt/inaccessible storage,
   incompatible schemas, UI empty/error states and recovery.
 - Local validation: 59 Python tests, 2 React regression tests, Ruff and production
-  TypeScript/Vite build passed. CI and deployment evidence: pending. User acceptance: pending.
+  TypeScript/Vite build passed. GitHub CI passed for implementation commit `00a0c9f`
+  ([run](https://github.com/zageabb/NetworkBridge/actions/runs/44108699325)).
+- Review and Ubuntu deployment verification are tracked in
+  [PR #16](https://github.com/zageabb/NetworkBridge/pull/16). User acceptance: pending.
 
 ## Phase 1 — Foundation
 - [x] FastAPI health/status skeleton
