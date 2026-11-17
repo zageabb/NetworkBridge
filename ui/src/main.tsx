@@ -114,7 +114,7 @@ function App() {
         </tbody></table></div></section>}
       {page !== "Overview" && page !== "WAN Traffic" && page !== "Devices" && page !== "Server Health" && page !== "Services & Apps" && page !== "Environment Report" && <section><h2>{page}</h2><div className="empty">This screen is planned. No live integration is configured yet.</div>
         {page === "Settings" && <p>Router collection is opt-in and requires verified TLS trust. Configuration is managed server-side.</p>}
-        {page === "Devices" && <p>Remembered devices are not evidence of active bandwidth usage.</p>}
+
       </section>}
     </main>
   </div>;
