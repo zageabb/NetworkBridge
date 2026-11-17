@@ -28,11 +28,20 @@ function Trend({ samples }: { samples: Sample[] }) {
   const valid = samples.filter(s => s.download_bps != null && s.upload_bps != null);
   if (valid.length < 2) return <div className="empty">Waiting for at least two valid traffic measurements.</div>;
   const max = Math.max(1, ...valid.flatMap(s => [s.download_bps ?? 0, s.upload_bps ?? 0]));
-  const points = (field: "download_bps" | "upload_bps") => valid.map((s, i) =>
-    `${(i / (valid.length - 1)) * 100},${100 - ((s[field] ?? 0) / max) * 92}`).join(" ");
-  return <div><svg viewBox="0 0 100 100" preserveAspectRatio="none" className="trend" role="img" aria-label="Download and upload traffic over time">
-    <polyline points={points("download_bps")} fill="none" stroke="#60a5fa" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
-    <polyline points={points("upload_bps")} fill="none" stroke="#34d399" strokeWidth="1.6" vectorEffect="non-scaling-stroke" />
+  const width = 100 / valid.length;
+  const barWidth = width * 0.38;
+  const bars = valid.flatMap((sample, i) => {
+    const x = i * width;
+    return (["download_bps", "upload_bps"] as const).map((field, j) => {
+      const height = Math.max(0, ((sample[field] ?? 0) / max) * 92);
+      return <rect key={i + "-" + field} x={x + (j === 0 ? width * 0.1 : width * 0.52)}
+        y={100 - height} width={barWidth} height={height}
+        fill={j === 0 ? "#60a5fa" : "#34d399"} />;
+    });
+  });
+  return <div><svg viewBox="0 0 100 100" preserveAspectRatio="none" className="trend"
+    role="img" aria-label="Grouped bars showing download and upload traffic over time">
+    {bars}
   </svg><p className="legend">● Download &nbsp; <span>● Upload</span> &nbsp; Peak {speed(max)}</p></div>;
 }
 
