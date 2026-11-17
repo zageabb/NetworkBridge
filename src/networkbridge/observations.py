@@ -42,3 +42,32 @@ def recent_observations(db: sqlite3.Connection, limit: int = 250) -> list[dict[s
                       (limit,)).fetchall()
     return [dict(zip(("address", "first_seen", "last_seen", "positive_scans", "source"), row))
             for row in rows]
+
+
+def observation_recency(devices: list[dict[str, object]],
+                        now: datetime | None = None,
+                        recent_within_minutes: int = 15) -> list[dict[str, object]]:
+    """Annotate positive scan history without claiming that hosts are online."""
+    if not 1 <= recent_within_minutes <= 1440:
+        raise ValueError("recent_within_minutes must be 1..1440")
+    current = now or datetime.now(UTC)
+    if current.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    result = []
+    for device in devices:
+        row = dict(device)
+        try:
+            last_seen = datetime.fromisoformat(str(row["last_seen"]))
+            if last_seen.tzinfo is None:
+                raise ValueError("Naive timestamp")
+            age = (current.astimezone(UTC) - last_seen.astimezone(UTC)).total_seconds()
+            row["minutes_since_seen"] = round(max(age, 0) / 60, 1)
+            row["recency"] = (
+                "recent_positive" if 0 <= age <= recent_within_minutes * 60
+                else "previously_observed"
+            )
+        except (ValueError, TypeError, OverflowError, KeyError):
+            row["minutes_since_seen"] = None
+            row["recency"] = "unknown"
+        result.append(row)
+    return result
