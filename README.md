@@ -201,3 +201,8 @@ The opt-in `GET /api/devices/observations` response includes `recency`
 labelled recent; older observations remain visible. This is **not** a live
 online/offline determination: no background probing is added, and hosts that
 reject TCP probes may not appear. Historical IP addresses can be reassigned.
+
+Device observation recency can be configured with
+`NETWORKBRIDGE_DEVICE_RECENCY_MINUTES=30` (allowed 1–1440; default 15).
+This changes labels only, not discovery frequency, and does not initiate
+background scans. The API returns the effective `recency_window_minutes`.
