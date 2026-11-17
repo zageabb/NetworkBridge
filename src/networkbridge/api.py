@@ -11,6 +11,7 @@ from networkbridge.config import settings
 from networkbridge.devices import list_devices
 from networkbridge.discovery import scan
 from networkbridge.environment import environment_report
+from networkbridge.identity import correlate
 from networkbridge.neighbours import neighbours
 from networkbridge.observations import recent_observations, record_scan
 from networkbridge.server import snapshot
@@ -157,6 +158,32 @@ def observations(limit: int = 250) -> dict[str, object]:
             return {"devices": [], "collection": "not_initialized"}
         raise HTTPException(status_code=503, detail="Observations unavailable") from None
     return {"devices": devices, "collection": "positive_tcp_observations"}
+
+
+@app.get("/api/devices/identified")
+def identified_devices(limit: int = 250) -> dict[str, object]:
+    if not 1 <= limit <= 500:
+        raise HTTPException(status_code=422, detail="limit must be 1..500")
+    if not (settings.active_discovery_enabled or settings.neighbour_discovery_enabled):
+        return {"devices": [], "collection": "disabled"}
+    observed = []
+    if settings.active_discovery_enabled:
+        path = database_path(settings.database_url)
+        if path.is_file():
+            try:
+                with sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2) as db:
+                    observed = recent_observations(db, 500)
+            except sqlite3.OperationalError as exc:
+                if "no such table" not in str(exc):
+                    raise HTTPException(status_code=503, detail="Observations unavailable") from None
+    arp = []
+    if settings.neighbour_discovery_enabled:
+        try:
+            arp = neighbours(limit=500)
+        except (OSError, ValueError):
+            raise HTTPException(status_code=503, detail="Neighbour cache unavailable") from None
+    return {"devices": correlate(observed, arp, limit), "collection": "correlated_evidence",
+            "note": "ARP and historical TCP IP joins do not establish permanent device identity"}
 
 
 if settings.static_dir.is_dir():

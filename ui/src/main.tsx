@@ -8,6 +8,8 @@ type Status = { router_collection: string };
 type ResourceAlert = { metric: string; percent: number; threshold: number; severity: string };
 type AlertsResponse = { alerts: ResourceAlert[]; count: number; mode: string };
 type DiscoveryResult = { devices: { address: string; state: string }[]; probed_hosts: number; note: string };
+type IdentifiedDevice = { address: string; mac: string | null; interface: string | null; last_positive_tcp: string | null; positive_scans: number; evidence: string[]; status: string };
+type IdentifiedResponse = { devices: IdentifiedDevice[]; collection: string };
 type Observation = { address: string; first_seen: string; last_seen: string; positive_scans: number; source: string };
 type ObservationResponse = { devices: Observation[]; collection: string };
 type Neighbour = { name: string; address: string; mac: string; interface: string; source: string; state: string };
@@ -46,6 +48,7 @@ function App() {
   const [neighbours, setNeighbours] = React.useState<NeighboursResponse | null>(null);
   const [discovered, setDiscovered] = React.useState<DiscoveryResult | null>(null);
   const [observations, setObservations] = React.useState<ObservationResponse | null>(null);
+  const [identified, setIdentified] = React.useState<IdentifiedResponse | null>(null);
   const [discovering, setDiscovering] = React.useState(false);
   const [discoveryMessage, setDiscoveryMessage] = React.useState("");
   const [alerts, setAlerts] = React.useState<AlertsResponse | null>(null);
@@ -58,7 +61,7 @@ function App() {
     let active = true;
     async function refresh() {
       try {
-        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed, savedObservations] = await Promise.all([
+        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed, savedObservations, identifiedDevices] = await Promise.all([
           fetch(api("health")).then(r => { if (!r.ok) throw Error("Health API unavailable"); return r.json(); }),
           fetch(api("status")).then(r => { if (!r.ok) throw Error("Status API unavailable"); return r.json() as Promise<Status>; }),
           fetch(api("wan/history?limit=300")).then(r => { if (!r.ok) throw Error("WAN history unavailable"); return r.json() as Promise<History>; }),
@@ -69,8 +72,9 @@ function App() {
           fetch(api("alerts")).then(r => r.ok ? r.json() as Promise<AlertsResponse> : null).catch(() => null),
           fetch(api("devices/neighbours")).then(r => r.ok ? r.json() as Promise<NeighboursResponse> : null).catch(() => null),
           fetch(api("devices/observations")).then(r => r.ok ? r.json() as Promise<ObservationResponse> : null).catch(() => null),
+          fetch(api("devices/identified")).then(r => r.ok ? r.json() as Promise<IdentifiedResponse> : null).catch(() => null),
         ]);
-        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.samples); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setObservations(savedObservations); setError("");
+        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.samples); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setObservations(savedObservations); setIdentified(identifiedDevices); setError("");
           if (host) { const old = previousCpu.current; const dt = host.cpu.total_ticks - (old?.total_ticks ?? host.cpu.total_ticks); const di = host.cpu.idle_ticks - (old?.idle_ticks ?? host.cpu.idle_ticks); setCpuUsage(old && dt > 0 && di >= 0 && di <= dt ? 100 * (1 - di / dt) : null); previousCpu.current = host.cpu; } else { previousCpu.current = null; setCpuUsage(null); } }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "API unavailable"); }
       finally { if (active) setLoading(false); }
@@ -88,6 +92,8 @@ function App() {
       setDiscovered(result);
       const saved = await fetch(api("devices/observations"));
       if (saved.ok) setObservations(await saved.json() as ObservationResponse);
+      const joined = await fetch(api("devices/identified"));
+      if (joined.ok) setIdentified(await joined.json() as IdentifiedResponse);
       setDiscoveryMessage("Checked " + result.probed_hosts + " addresses; " + result.devices.length + " hosts accepted TCP connections.");
     } catch (e) { setDiscoveryMessage(e instanceof Error ? e.message : "Discovery unavailable"); }
     finally { setDiscovering(false); }
@@ -133,7 +139,13 @@ function App() {
           ["Monitoring", environment.monitoring_mode],
         ] as [string,string][]).map(([name,value]) => <tr key={name}><th scope="row">{name}</th><td>{value}</td></tr>)}</tbody></table></div>
         : <div className="empty">Environment inventory unavailable.</div>}</section>}
-      {page === "Devices" && <><section><h2>Active LAN discovery</h2><p>Optional, server-configured private-subnet TCP checks. This is an active network operation; only use it on networks you administer. Hosts with closed ports may be absent.</p>
+      {page === "Devices" && <><section><h2>Combined device evidence</h2><p>Current ARP MAC/interface data joined to historical positive TCP responses by IP address. IP addresses may be reassigned; this is not permanent identity or proof of online status.</p>
+        <label htmlFor="device-search">Search devices</label>
+        <input id="device-search" className="search" value={deviceSearch} onChange={e => setDeviceSearch(e.target.value)} placeholder="IP address, MAC or interface" />
+        <div className="table-wrap"><table><thead><tr><th>IP address</th><th>MAC</th><th>Interface</th><th>Evidence</th><th>Last TCP response</th></tr></thead><tbody>
+        {identified?.devices.filter(d => [d.address, d.mac, d.interface].some(v => (v ?? "").toLowerCase().includes(deviceSearch.toLowerCase()))).map(d => <tr key={d.address}><td>{d.address}</td><td>{d.mac ?? "—"}</td><td>{d.interface ?? "—"}</td><td>{d.evidence.join(", ")}</td><td>{d.last_positive_tcp ?? "—"}</td></tr>)}
+        {!identified?.devices.length && <tr><td colSpan={5}>No combined evidence yet. Enable discovery on the server.</td></tr>}
+        </tbody></table></div></section><section><h2>Active LAN discovery</h2><p>Optional, server-configured private-subnet TCP checks. This is an active network operation; only use it on networks you administer. Hosts with closed ports may be absent.</p>
         <button disabled={discovering} onClick={() => void discover()}>{discovering ? "Checking LAN…" : "Discover LAN devices"}</button>
         {discoveryMessage && <p role="status">{discoveryMessage}</p>}
         {discovered && <div className="table-wrap"><table><thead><tr><th>IP address</th><th>Result</th></tr></thead><tbody>
@@ -151,8 +163,6 @@ function App() {
           {!neighbours?.devices.length && <tr><td colSpan={4}>No neighbours found. Enable NETWORKBRIDGE_NEIGHBOUR_DISCOVERY_ENABLED=true on the server to collect passive ARP entries.</td></tr>}
         </tbody></table></div></section><section><h2>Remembered devices</h2><p>Stored router inventory; BT Smart Hub device parsing is not yet connected.</p>
         <p>Collection: {devices?.collection ?? "unavailable"}</p>
-        <label htmlFor="device-search">Search devices</label>
-        <input id="device-search" className="search" value={deviceSearch} onChange={e => setDeviceSearch(e.target.value)} placeholder="Search by name, address or connection" />
         <div className="table-wrap"><table><thead><tr><th>Name</th><th>Address</th><th>Connection</th><th>Last seen</th></tr></thead><tbody>
           {devices?.devices.filter(d => [d.name, d.address, d.connection_type].some(v => (v ?? "").toLowerCase().includes(deviceSearch.toLowerCase()))).map((d, i) => <tr key={d.name+i}><td>{d.name}</td><td>{d.address ?? "—"}</td><td>{d.connection_type ?? "Unknown"}</td><td>{d.last_seen ?? "Unknown"}</td></tr>)}
           {!devices?.devices.length && <tr><td colSpan={4}>No devices recorded. Discovery is not yet connected.</td></tr>}
