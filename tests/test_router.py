@@ -1,9 +1,17 @@
+import logging
 from pathlib import Path
 
 import httpx
 import pytest
 
-from networkbridge.router import Counters, SmartHubCollector, parse_counters, parse_wan_xml, rates
+from networkbridge.router import (
+    Counters,
+    PollDiagnostics,
+    SmartHubCollector,
+    parse_counters,
+    parse_wan_xml,
+    rates,
+)
 
 
 def test_percent_encoded_counters():
@@ -82,3 +90,26 @@ def test_collector_pins_configured_certificate(monkeypatch):
     context = captured["verify"]
     assert context.check_hostname is True
     assert context.verify_mode.name == "CERT_REQUIRED"
+
+
+def test_poll_diagnostics_rate_limited_and_recovery(caplog):
+    diagnostic = PollDiagnostics()
+    with caplog.at_level(logging.INFO, logger="networkbridge.router"):
+        for _ in range(13):
+            diagnostic.failure(ValueError("secret router response data"))
+        diagnostic.success()
+    warnings = [record for record in caplog.records if record.levelno == logging.WARNING]
+    assert len(warnings) == 2
+    assert "consecutive_failures=1" in warnings[0].message
+    assert "consecutive_failures=12" in warnings[1].message
+    assert "recovered after 13 failed attempts" in caplog.text
+    assert "secret router response data" not in caplog.text
+    assert diagnostic.failures == 0
+
+
+def test_poll_diagnostics_classifies_without_leaking_urls(caplog):
+    diagnostic = PollDiagnostics()
+    with caplog.at_level(logging.WARNING, logger="networkbridge.router"):
+        diagnostic.failure(httpx.ConnectError("https://router.local/private?password=secret"))
+    assert "reason=router_connection" in caplog.text
+    assert "password=secret" not in caplog.text

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import ssl
 import time
@@ -11,6 +12,37 @@ from pathlib import Path
 from urllib.parse import unquote
 
 import httpx
+
+logger = logging.getLogger(__name__)
+
+
+class PollDiagnostics:
+    """Emit bounded, sanitized polling state transitions."""
+
+    def __init__(self) -> None:
+        self.failures = 0
+
+    def failure(self, exc: Exception) -> None:
+        self.failures += 1
+        if self.failures == 1 or self.failures % 12 == 0:
+            if isinstance(exc, httpx.HTTPStatusError):
+                reason = "router_http_status"
+            elif isinstance(exc, httpx.TimeoutException):
+                reason = "router_timeout"
+            elif isinstance(exc, httpx.ConnectError):
+                reason = "router_connection"
+            elif isinstance(exc, httpx.HTTPError):
+                reason = "router_http_error"
+            else:
+                reason = "invalid_router_response"
+            logger.warning("WAN polling failed: reason=%s consecutive_failures=%d",
+                           reason, self.failures)
+
+    def success(self) -> None:
+        if self.failures:
+            logger.info("WAN polling recovered after %d failed attempts", self.failures)
+            self.failures = 0
+
 
 ALLOWED_PATHS = frozenset({"/", "/nonAuth/wan_conn.xml", "/cgi/cgi_home.js"})
 
@@ -114,6 +146,7 @@ async def poll_wan(collector: SmartHubCollector, callback, interval: float = 5.0
     previous = None
     previous_time = None
     previous_uptime = None
+    diagnostics = PollDiagnostics()
     while True:
         started = time.monotonic()
         try:
@@ -126,7 +159,9 @@ async def poll_wan(collector: SmartHubCollector, callback, interval: float = 5.0
                     and int(str(uptime)) < int(str(previous_uptime))):
                 rate = None
             await callback(sample, rate)
+            diagnostics.success()
             previous, previous_time, previous_uptime = counters, started, uptime
-        except (httpx.HTTPError, ValueError, ET.ParseError):
+        except (httpx.HTTPError, ValueError, ET.ParseError) as exc:
+            diagnostics.failure(exc)
             previous, previous_time, previous_uptime = None, None, None
         await asyncio.sleep(max(0.0, interval - (time.monotonic() - started)))
