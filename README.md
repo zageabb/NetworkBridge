@@ -51,6 +51,13 @@ The WAN Traffic page shows **No WAN measurements recorded yet** while waiting;
 a database failure is displayed separately from the collector's enabled state.
 `httpx` is a runtime dependency so production installs can start the worker.
 
+Router polling requires normal TLS trust or an explicitly verified certificate
+pin. For a router with a private CA, store its certificate outside the checkout,
+set `NETWORKBRIDGE_ROUTER_TLS_CERTIFICATE` to that absolute PEM path, verify the
+SHA-256 fingerprint independently, and then enable
+`NETWORKBRIDGE_ROUTER_POLLING_ENABLED=true`. Expiry and hostname/IP validation
+remain active; NetworkBridge never disables TLS verification.
+
 ## See recently observed machines (Ubuntu Linux)
 
 After CI is green and the release is deployed, set

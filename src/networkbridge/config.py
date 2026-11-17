@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     port: int = 8765
     database_url: str = "sqlite:///./networkbridge.db"
     router_url: str = "https://192.168.1.254"
+    router_tls_certificate: Path | None = None
     router_polling_enabled: bool = False
     neighbour_discovery_enabled: bool = False
     device_alias_writes_enabled: bool = False

@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+import ssl
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import unquote
 
 import httpx
@@ -56,11 +58,21 @@ def parse_wan_xml(payload: str) -> dict[str, object]:
 
 
 class SmartHubCollector:
-    def __init__(self, url: str):
+    def __init__(self, url: str, tls_certificate: Path | None = None):
         if not url.startswith("https://"):
             raise ValueError("Router must use HTTPS")
         self.url = url.rstrip("/")
-        self.client = httpx.AsyncClient(base_url=self.url, timeout=5.0, follow_redirects=False)
+        verify: bool | ssl.SSLContext = True
+        if tls_certificate is not None:
+            if not tls_certificate.is_file():
+                raise ValueError("Configured router TLS certificate is not a file")
+            verify = ssl.create_default_context(cafile=str(tls_certificate))
+            # BT Hub supplies only its leaf certificate. Trust that exact configured
+            # certificate as the anchor while retaining expiry and hostname checks.
+            verify.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
+        self.client = httpx.AsyncClient(
+            base_url=self.url, timeout=5.0, follow_redirects=False, verify=verify
+        )
         self._initialized = False
 
     async def get(self, path: str) -> str:
