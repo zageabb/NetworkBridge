@@ -12,6 +12,7 @@ from networkbridge.devices import list_devices
 from networkbridge.discovery import scan
 from networkbridge.environment import environment_report
 from networkbridge.neighbours import neighbours
+from networkbridge.observations import record_scan, recent_observations
 from networkbridge.server import snapshot
 from networkbridge.services import check_services
 from networkbridge.storage import recent_wan
@@ -123,11 +124,39 @@ async def discover_devices(x_networkbridge_action: str | None = Header(default=N
     if x_networkbridge_action != "discover":
         raise HTTPException(status_code=403, detail="Explicit discovery action required")
     try:
-        return await scan(settings.active_discovery_cidr)
+        result = await scan(settings.active_discovery_cidr)
+        path = database_path(settings.database_url)
+        try:
+            with sqlite3.connect(path, timeout=2) as db:
+                record_scan(db, result["devices"])
+        except (sqlite3.Error, OSError):
+            result["persistence"] = "unavailable"
+        else:
+            result["persistence"] = "saved"
+        return result
     except ValueError:
         raise HTTPException(status_code=422, detail="Invalid configured discovery subnet") from None
     except RuntimeError:
         raise HTTPException(status_code=429, detail="Discovery cooldown active") from None
+
+
+@app.get("/api/devices/observations")
+def observations(limit: int = 250) -> dict[str, object]:
+    if not 1 <= limit <= 500:
+        raise HTTPException(status_code=422, detail="limit must be 1..500")
+    if not settings.active_discovery_enabled:
+        return {"devices": [], "collection": "disabled"}
+    path = database_path(settings.database_url)
+    if not path.is_file():
+        return {"devices": [], "collection": "not_initialized"}
+    try:
+        with sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2) as db:
+            devices = recent_observations(db, limit)
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc):
+            return {"devices": [], "collection": "not_initialized"}
+        raise HTTPException(status_code=503, detail="Observations unavailable") from None
+    return {"devices": devices, "collection": "positive_tcp_observations"}
 
 
 if settings.static_dir.is_dir():
