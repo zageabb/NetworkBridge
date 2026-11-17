@@ -32,6 +32,25 @@ Set `NETWORKBRIDGE_STATIC_DIR` when the built UI is stored somewhere other than 
 ## Safety
 Never commit router response captures, MAC addresses, credentials, cookies or secrets. Router monitoring is read-only and uses explicit allow-listed endpoints only. See SECURITY.md and docs/ROUTER.md.
 
+## WAN history without router polling
+
+The API and worker initialise the SQLite tables on startup, independently of
+`NETWORKBRIDGE_ROUTER_POLLING_ENABLED`. Initialisation is additive and preserves
+existing device observations and labels. Router polling remains disabled by default.
+
+`GET /api/wan/history` returns HTTP 200 with `{"samples": [], "count": 0}` when
+there are no samples, including a missing database or missing `wan_samples` table.
+Invalid paths, unreadable/corrupt databases and incompatible existing WAN schemas
+still return HTTP 503. Startup storage failures are logged while API health and
+status remain available for diagnosis.
+
+`GET /api/status` reports independent states: `router_collection` (`enabled` or
+`disabled`), `database` (WAN schema `initialized`, `not_initialized`, or
+`unavailable`), and `wan_history` (`available`, `no_measurements`, or `unavailable`).
+The WAN Traffic page shows **No WAN measurements recorded yet** while waiting;
+a database failure is displayed separately from the collector's enabled state.
+`httpx` is a runtime dependency so production installs can start the worker.
+
 ## See recently observed machines (Ubuntu Linux)
 
 After CI is green and the release is deployed, set

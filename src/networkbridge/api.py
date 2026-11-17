@@ -1,7 +1,8 @@
 """Local-only API for aggregate WAN monitoring history."""
 
+import logging
 import sqlite3
-from pathlib import Path
+from contextlib import asynccontextmanager, closing
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -11,6 +12,7 @@ from networkbridge.alerts import evaluate
 from networkbridge.aliases import ensure_schema as ensure_alias_schema
 from networkbridge.aliases import list_aliases, save_alias
 from networkbridge.config import settings
+from networkbridge.database import database_path, initialize_database
 from networkbridge.devices import list_devices
 from networkbridge.discovery import scan
 from networkbridge.environment import environment_report
@@ -19,9 +21,23 @@ from networkbridge.neighbours import neighbours
 from networkbridge.observations import recent_observations, record_scan
 from networkbridge.server import snapshot
 from networkbridge.services import check_services
-from networkbridge.storage import recent_wan
+from networkbridge.storage import recent_wan, wan_schema_exists
 
-app = FastAPI(title="NetworkBridge", version="0.2.0", docs_url=None, redoc_url=None)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        initialize_database(settings.database_url)
+    except (OSError, ValueError, sqlite3.Error):
+        # Keep health/status available to diagnose storage failures without leaking paths.
+        logger.error("Database initialisation failed; WAN storage may be unavailable")
+    yield
+
+
+app = FastAPI(title="NetworkBridge", version="0.2.0", docs_url=None, redoc_url=None,
+              lifespan=lifespan)
 
 
 class AliasUpdate(BaseModel):
@@ -29,11 +45,15 @@ class AliasUpdate(BaseModel):
     label: str
 
 
-def database_path(url: str) -> Path:
-    prefix = "sqlite:///"
-    if not url.startswith(prefix):
-        raise ValueError("Only SQLite is supported")
-    return Path(url[len(prefix):])
+def read_wan(limit: int) -> tuple[list[dict], str]:
+    path = database_path(settings.database_url)
+    try:
+        path.stat()
+    except FileNotFoundError:
+        return [], "not_initialized"
+    with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)) as db:
+        initialized = wan_schema_exists(db)
+        return recent_wan(db, limit), "initialized" if initialized else "not_initialized"
 
 
 @app.get("/api/health")
@@ -43,10 +63,17 @@ def health() -> dict[str, str]:
 
 @app.get("/api/status")
 def status() -> dict[str, object]:
+    try:
+        samples, database = read_wan(1)
+        history = "available" if samples else "no_measurements"
+    except (OSError, ValueError, sqlite3.Error):
+        database, history = "unavailable", "unavailable"
     return {
         "phase": 2,
         "router_collection": "enabled" if settings.router_polling_enabled else "disabled",
         "devices": [],
+        "database": database,
+        "wan_history": history,
     }
 
 
@@ -54,13 +81,9 @@ def status() -> dict[str, object]:
 def wan_history(limit: int = 300) -> dict[str, object]:
     if not 1 <= limit <= 1000:
         raise HTTPException(status_code=422, detail="limit must be 1..1000")
-    path = database_path(settings.database_url)
-    if not path.is_file():
-        return {"samples": [], "count": 0}
     try:
-        with sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2) as db:
-            samples = recent_wan(db, limit)
-    except sqlite3.Error:
+        samples, _ = read_wan(limit)
+    except (OSError, ValueError, sqlite3.Error):
         raise HTTPException(status_code=503, detail="WAN history unavailable") from None
     return {"samples": samples, "count": len(samples)}
 
