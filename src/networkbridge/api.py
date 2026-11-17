@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
 from networkbridge.config import settings
+from networkbridge.devices import list_devices
 from networkbridge.environment import environment_report
 from networkbridge.server import snapshot
 from networkbridge.services import check_services
@@ -67,6 +68,25 @@ def services() -> dict[str, object]:
 @app.get("/api/environment")
 def environment() -> dict[str, str]:
     return environment_report()
+
+
+@app.get("/api/devices")
+def devices(limit: int = 250) -> dict[str, object]:
+    if not 1 <= limit <= 500:
+        raise HTTPException(status_code=422, detail="limit must be 1..500")
+    if not settings.router_polling_enabled:
+        return {"devices": [], "collection": "disabled"}
+    path = database_path(settings.database_url)
+    if not path.is_file():
+        return {"devices": [], "collection": "not_initialized"}
+    try:
+        with sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2) as db:
+            found = list_devices(db, limit)
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc):
+            return {"devices": [], "collection": "not_initialized"}
+        raise HTTPException(status_code=503, detail="Device inventory unavailable") from None
+    return {"devices": found, "collection": "stored_inventory"}
 
 
 if settings.static_dir.is_dir():
