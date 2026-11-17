@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 
 def ensure_schema(db: sqlite3.Connection) -> None:
@@ -101,3 +101,22 @@ def observation_events(db: sqlite3.Connection, address: str | None = None,
             "WHERE address = ? ORDER BY id DESC LIMIT ?", (address, limit)
         ).fetchall()
     return [dict(zip(("address", "observed_at", "source"), row)) for row in rows]
+
+
+def prune_observation_events(db: sqlite3.Connection, retention_days: int,
+                             now: datetime | None = None) -> int:
+    """Remove expired event rows only; preserve per-address observation summaries."""
+    if not 0 <= retention_days <= 3650:
+        raise ValueError("retention_days must be 0..3650")
+    if retention_days == 0:
+        return 0
+    current = now or datetime.now(UTC)
+    if current.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    cutoff = (current.astimezone(UTC) - timedelta(days=retention_days)).isoformat()
+    cursor = db.execute(
+        "DELETE FROM device_observation_events WHERE julianday(observed_at) < julianday(?)",
+        (cutoff,),
+    )
+    db.commit()
+    return cursor.rowcount
