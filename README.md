@@ -226,3 +226,11 @@ LAN discovery scan. Allowed range is 0–3650 days; default `0` disables
 pruning and preserves existing data. This does not delete the per-IP device
 observation summary, run scheduled scans, or infer devices are offline.
 If no further manual scan occurs, expired rows remain until the next scan.
+
+## Device event history filters
+
+The Devices screen offers a discovered-IP selector and history limits of 25,
+100, 250 or 500 events. Filters are sent to the existing read-only
+`/api/devices/observation-events` endpoint so selection is not restricted to
+the initially displayed 100 events. The selector uses recorded IP addresses,
+not persistent device identities; addresses can be reassigned.
