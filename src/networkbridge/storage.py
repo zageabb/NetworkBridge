@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -78,8 +79,6 @@ def aggregated_wan(db: sqlite3.Connection, hours: int) -> list[dict]:
         (bucket_seconds, bucket_seconds, hours * 3600),
     ).fetchall()
     return [
-        {"sampled_at": __import__("datetime").datetime.fromtimestamp(
-            bucket, tz=__import__("datetime").timezone.utc
-        ).isoformat(), "download_bps": down, "upload_bps": up, "sample_count": count}
+        {"sampled_at": datetime.fromtimestamp(bucket, tz=UTC).isoformat(), "download_bps": down, "upload_bps": up, "sample_count": count}
         for bucket, down, up, count in rows
     ]
