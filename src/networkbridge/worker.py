@@ -21,7 +21,7 @@ async def run() -> None:
 
     path = database_path(settings.database_url)
     db = connect(path)
-    collector = SmartHubCollector(settings.router_url)
+    collector = SmartHubCollector(settings.router_url, settings.router_tls_certificate)
 
     async def save(sample: dict, rate: tuple[float, float] | None) -> None:
         timestamp = datetime.now(UTC).isoformat()

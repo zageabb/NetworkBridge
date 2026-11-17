@@ -22,6 +22,14 @@
   all 8 device observations and 1 saved alias preserved; SQLite quick check passed.
   A pre-deployment SQLite backup is retained on the Ubuntu host. User acceptance: pending.
 
+## Router TLS certificate pinning — AWAITING ACCEPTANCE
+
+- Add opt-in trust for an explicitly verified router certificate while retaining
+  certificate expiry and hostname/IP validation.
+- Keep system CA verification as the default and reject missing certificate files.
+- Local validation: 62 Python tests, Ruff, 2 React regression tests and the
+  production TypeScript/Vite build pass. Ubuntu deployment and live sample evidence: pending.
+
 ## Phase 1 — Foundation
 - [x] FastAPI health/status skeleton
 - [x] Independent asyncio worker skeleton
