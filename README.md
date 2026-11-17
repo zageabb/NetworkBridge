@@ -71,3 +71,15 @@ cause false negatives. No hostnames or MAC addresses are inferred from probes.
 
 The POST endpoint must remain behind UDA authentication; a custom action header
 is required. This operation is disabled by default and does not run periodically.
+
+## Persistent discovery observations
+
+Successful, manually triggered active discovery results are recorded in the
+NetworkBridge SQLite database as positive TCP observations. The Devices screen
+shows first seen, last positive response and number of successful scans.
+`GET /api/devices/observations` reads that history (when active discovery is
+enabled). Hosts missing from later scans are **not** marked offline because
+firewalls, sleeping hosts and closed ports can produce false negatives.
+These records are keyed by IP address, not permanent device identity; DHCP
+reassignment can associate one IP with different machines over time. Future
+router-assisted MAC identification is needed for reliable device identities.
