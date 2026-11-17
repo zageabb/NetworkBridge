@@ -21,6 +21,7 @@ from networkbridge.neighbours import neighbours
 from networkbridge.observations import (
     observation_events,
     observation_recency,
+    prune_observation_events,
     recent_observations,
     record_scan,
 )
@@ -220,6 +221,10 @@ async def discover_devices(x_networkbridge_action: str | None = Header(default=N
         try:
             with sqlite3.connect(path, timeout=2) as db:
                 record_scan(db, result["devices"])
+                if settings.device_event_retention_days > 0:
+                    result["pruned_events"] = prune_observation_events(
+                        db, settings.device_event_retention_days
+                    )
         except (sqlite3.Error, OSError):
             result["persistence"] = "unavailable"
         else:
