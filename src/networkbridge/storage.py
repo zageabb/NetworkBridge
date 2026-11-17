@@ -157,3 +157,32 @@ def wan_usage(db: sqlite3.Connection, now: datetime | None = None) -> dict:
                 result["skipped_intervals"] += 1
         previous = (timestamp, uptime, received, transmitted)
     return result
+
+
+def wan_freshness(db: sqlite3.Connection, now: datetime | None = None,
+                  stale_after_seconds: int = 30) -> dict:
+    """Read-only freshness check for the latest persisted WAN measurement."""
+    if stale_after_seconds < 1:
+        raise ValueError("stale_after_seconds must be positive")
+    current = now or datetime.now(UTC)
+    if current.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    result = {"state": "no_measurements", "last_sample_at": None,
+              "age_seconds": None, "stale_after_seconds": stale_after_seconds}
+    if not wan_schema_exists(db):
+        return result
+    row = db.execute(
+        "SELECT sampled_at FROM wan_samples ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    if row is None:
+        return result
+    try:
+        timestamp = datetime.fromisoformat(row[0])
+        if timestamp.tzinfo is None:
+            raise ValueError("Timestamp without timezone")
+        age = (current.astimezone(UTC) - timestamp.astimezone(UTC)).total_seconds()
+    except (ValueError, TypeError, OverflowError):
+        return {**result, "state": "invalid_timestamp"}
+    return {"state": "fresh" if 0 <= age <= stale_after_seconds else "stale",
+            "last_sample_at": row[0], "age_seconds": round(age, 1),
+            "stale_after_seconds": stale_after_seconds}
