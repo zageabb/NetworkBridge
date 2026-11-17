@@ -15,7 +15,7 @@ def ensure_schema(db: sqlite3.Connection) -> None:
         source TEXT NOT NULL
     )""")
     db.execute("""CREATE TABLE IF NOT EXISTS device_observation_events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY,
         address TEXT NOT NULL,
         observed_at TEXT NOT NULL,
         source TEXT NOT NULL
