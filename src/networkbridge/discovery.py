@@ -7,15 +7,17 @@ import ipaddress
 import time
 
 PORTS = (22, 80, 443, 445)
+RFC1918 = tuple(ipaddress.ip_network(cidr) for cidr in (
+    "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
 _last_run = 0.0
 _lock = asyncio.Lock()
 
 
 def targets(cidr: str) -> list[str]:
     network = ipaddress.ip_network(cidr, strict=True)
-    if (network.version != 4 or not network.is_private or
+    if (network.version != 4 or not any(network.subnet_of(block) for block in RFC1918) or
             network.num_addresses > 256 or network.prefixlen < 24):
-        raise ValueError("Only private IPv4 networks of /24 or smaller are allowed")
+        raise ValueError("Only RFC1918 IPv4 networks of /24 or smaller are allowed")
     return [str(ip) for ip in network.hosts()]
 
 

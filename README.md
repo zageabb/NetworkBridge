@@ -93,3 +93,12 @@ MAC/interface (if available), positive scan count and last TCP response.
 This join is temporary evidence only: DHCP can reassign addresses, and a
 previously observed MAC must not be attributed to a different future occupant
 of that IP. No online/offline classification is asserted.
+
+## Discovery network boundary
+
+Active scanning is explicitly limited to RFC1918 private IPv4 blocks
+(`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), with a maximum
+configured scope of /24. Loopback, link-local, carrier-grade NAT and reserved
+ranges are rejected even if an IP library considers them non-global. Discovery
+remains disabled by default, requires the deliberate UI action and is limited
+by concurrency and cooldown.
