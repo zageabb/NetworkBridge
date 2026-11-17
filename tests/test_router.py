@@ -4,7 +4,14 @@ from pathlib import Path
 import httpx
 import pytest
 
-from networkbridge.router import Counters, PollDiagnostics, SmartHubCollector, parse_counters, parse_wan_xml, rates
+from networkbridge.router import (
+    Counters,
+    PollDiagnostics,
+    SmartHubCollector,
+    parse_counters,
+    parse_wan_xml,
+    rates,
+)
 
 
 def test_percent_encoded_counters():
