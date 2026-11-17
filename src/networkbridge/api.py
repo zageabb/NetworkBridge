@@ -10,6 +10,7 @@ from networkbridge.alerts import evaluate
 from networkbridge.config import settings
 from networkbridge.devices import list_devices
 from networkbridge.environment import environment_report
+from networkbridge.neighbours import neighbours
 from networkbridge.server import snapshot
 from networkbridge.services import check_services
 from networkbridge.storage import recent_wan
@@ -99,6 +100,19 @@ def alerts() -> dict[str, object]:
         raise HTTPException(status_code=503, detail="Resource alerts unavailable") from None
     return {"alerts": active, "count": len(active), "sampled_at_unix": host["sampled_at_unix"],
             "mode": "current_snapshot_only"}
+
+
+@app.get("/api/devices/neighbours")
+def live_neighbours(limit: int = 250) -> dict[str, object]:
+    if not 1 <= limit <= 500:
+        raise HTTPException(status_code=422, detail="limit must be 1..500")
+    if not settings.neighbour_discovery_enabled:
+        return {"devices": [], "collection": "disabled", "source": "linux_arp_cache"}
+    try:
+        found = neighbours(limit=limit)
+    except (OSError, ValueError):
+        raise HTTPException(status_code=503, detail="Neighbour cache unavailable") from None
+    return {"devices": found, "collection": "passive", "source": "linux_arp_cache"}
 
 
 if settings.static_dir.is_dir():
