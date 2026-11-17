@@ -150,3 +150,13 @@ failure counter. Categories include router HTTP status, timeout, connection and
 invalid router response; router addresses, raw responses and exception messages
 are not logged. Inspect the worker's systemd journal when WAN history stays empty.
 A running worker does not prove that the router's endpoint is compatible.
+
+## Long-term WAN history
+
+The WAN chart offers 1-hour, 24-hour and 7-day views through
+`GET /api/wan/aggregated?hours=1|24|168`. SQLite groups valid rate
+measurements into UTC buckets of 60, 900 and 3600 seconds respectively,
+returning mean download/upload rates and the contributing sample count.
+Only existing samples are shown: gaps are not synthesized and mean rates
+are not billed data usage totals. History is limited to retained raw samples;
+no retention or automatic downsampling policy is implemented yet.
