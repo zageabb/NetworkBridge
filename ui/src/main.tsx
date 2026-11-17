@@ -5,6 +5,8 @@ import "./style.css";
 type Sample = { sampled_at: string; connected: string | null; download_bps: number | null; upload_bps: number | null };
 type History = { samples: Sample[]; count: number };
 type Status = { router_collection: string };
+type ResourceAlert = { metric: string; percent: number; threshold: number; severity: string };
+type AlertsResponse = { alerts: ResourceAlert[]; count: number; mode: string };
 type Device = { name: string; address: string | null; connection_type: string | null; last_seen: string | null; observed_at: string };
 type DeviceInventory = { devices: Device[]; collection: string };
 type Environment = { operating_system: string; kernel: string; architecture: string; python_version: string; monitoring_mode: string };
@@ -36,6 +38,7 @@ function App() {
   const [services, setServices] = React.useState<Service[] | null>(null);
   const [environment, setEnvironment] = React.useState<Environment | null>(null);
   const [devices, setDevices] = React.useState<DeviceInventory | null>(null);
+  const [alerts, setAlerts] = React.useState<AlertsResponse | null>(null);
   const [deviceSearch, setDeviceSearch] = React.useState("");
   const [cpuUsage, setCpuUsage] = React.useState<number | null>(null);
   const previousCpu = React.useRef<{ total_ticks: number; idle_ticks: number } | null>(null);
@@ -45,7 +48,7 @@ function App() {
     let active = true;
     async function refresh() {
       try {
-        const [h, s, w, host, checks, inventory, deviceInventory] = await Promise.all([
+        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts] = await Promise.all([
           fetch(api("health")).then(r => { if (!r.ok) throw Error("Health API unavailable"); return r.json(); }),
           fetch(api("status")).then(r => { if (!r.ok) throw Error("Status API unavailable"); return r.json() as Promise<Status>; }),
           fetch(api("wan/history?limit=300")).then(r => { if (!r.ok) throw Error("WAN history unavailable"); return r.json() as Promise<History>; }),
@@ -53,8 +56,9 @@ function App() {
           fetch(api("services")).then(r => r.ok ? r.json() as Promise<{ services: Service[] }> : null).catch(() => null),
           fetch(api("environment")).then(r => r.ok ? r.json() as Promise<Environment> : null).catch(() => null),
           fetch(api("devices")).then(r => r.ok ? r.json() as Promise<DeviceInventory> : null).catch(() => null),
+          fetch(api("alerts")).then(r => r.ok ? r.json() as Promise<AlertsResponse> : null).catch(() => null),
         ]);
-        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.samples); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setError("");
+        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.samples); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setError("");
           if (host) { const old = previousCpu.current; const dt = host.cpu.total_ticks - (old?.total_ticks ?? host.cpu.total_ticks); const di = host.cpu.idle_ticks - (old?.idle_ticks ?? host.cpu.idle_ticks); setCpuUsage(old && dt > 0 && di >= 0 && di <= dt ? 100 * (1 - di / dt) : null); previousCpu.current = host.cpu; } else { previousCpu.current = null; setCpuUsage(null); } }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "API unavailable"); }
       finally { if (active) setLoading(false); }
@@ -112,7 +116,12 @@ function App() {
           {devices?.devices.filter(d => [d.name, d.address, d.connection_type].some(v => (v ?? "").toLowerCase().includes(deviceSearch.toLowerCase()))).map((d, i) => <tr key={d.name+i}><td>{d.name}</td><td>{d.address ?? "—"}</td><td>{d.connection_type ?? "Unknown"}</td><td>{d.last_seen ?? "Unknown"}</td></tr>)}
           {!devices?.devices.length && <tr><td colSpan={4}>No devices recorded. Discovery is not yet connected.</td></tr>}
         </tbody></table></div></section>}
-      {page !== "Overview" && page !== "WAN Traffic" && page !== "Devices" && page !== "Server Health" && page !== "Services & Apps" && page !== "Environment Report" && <section><h2>{page}</h2><div className="empty">This screen is planned. No live integration is configured yet.</div>
+      {page === "Alerts" && <section><h2>Resource threshold alerts</h2><p>Live snapshot evaluation for memory and disk usage. Thresholds are configured on the server. No alert history, acknowledgement or notifications yet.</p>
+        {!alerts ? <div className="empty">Resource alert status unavailable.</div> : alerts.count === 0 ? <div className="empty">No memory or disk thresholds exceeded in the latest sample.</div> :
+          <div className="table-wrap"><table><thead><tr><th>Resource</th><th>Usage</th><th>Threshold</th><th>Severity</th></tr></thead><tbody>
+            {alerts.alerts.map(a => <tr key={a.metric}><td>{a.metric}</td><td>{a.percent}%</td><td>{a.threshold}%</td><td>{a.severity}</td></tr>)}
+          </tbody></table></div>}</section>}
+      {page !== "Overview" && page !== "WAN Traffic" && page !== "Devices" && page !== "Server Health" && page !== "Services & Apps" && page !== "Environment Report" && page !== "Alerts" && <section><h2>{page}</h2><div className="empty">This screen is planned. No live integration is configured yet.</div>
         {page === "Settings" && <p>Router collection is opt-in and requires verified TLS trust. Configuration is managed server-side.</p>}
 
       </section>}
