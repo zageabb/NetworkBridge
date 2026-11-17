@@ -3,6 +3,7 @@ import "./style.css";
 
 type Sample = { sampled_at: string; connected: string | null; download_bps: number | null; upload_bps: number | null };
 type History = { samples: Sample[]; count: number };
+type CollectorHealth = { state: string; last_sample_at: string | null; age_seconds: number | null; stale_after_seconds: number };
 type Usage = { day_received_bytes: number; day_transmitted_bytes: number; month_received_bytes: number; month_transmitted_bytes: number; accepted_intervals: number; skipped_intervals: number; coverage: string };
 type Status = { router_collection: string; database: "initialized" | "not_initialized" | "unavailable"; wan_history: "available" | "no_measurements" | "unavailable" };
 type ResourceAlert = { metric: string; percent: number; threshold: number; severity: string };
@@ -53,6 +54,7 @@ export function App() {
   const [wanError, setWanError] = React.useState("");
   const [history, setHistory] = React.useState<Sample[]>([]);
   const [usage, setUsage] = React.useState<Usage | null>(null);
+  const [collectorHealth, setCollectorHealth] = React.useState<CollectorHealth | null>(null);
   const [chartMinutes, setChartMinutes] = React.useState(5);
   const [aggregateHistory, setAggregateHistory] = React.useState<Sample[]>([]);
   const [aggregateError, setAggregateError] = React.useState("");
@@ -79,7 +81,7 @@ export function App() {
     let active = true;
     async function refresh() {
       try {
-        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed, savedObservations, identifiedDevices, usageTotals] = await Promise.all([
+        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed, savedObservations, identifiedDevices, usageTotals, collectorState] = await Promise.all([
           fetch(api("health")).then(r => { if (!r.ok) throw Error("Health API unavailable"); return r.json(); }),
           fetch(api("status")).then(r => { if (!r.ok) throw Error("Status API unavailable"); return r.json() as Promise<Status>; }),
           fetch(api("wan/history?limit=300")).then(async r => {
@@ -95,8 +97,9 @@ export function App() {
           fetch(api("devices/observations")).then(r => r.ok ? r.json() as Promise<ObservationResponse> : null).catch(() => null),
           fetch(api("devices/identified")).then(r => r.ok ? r.json() as Promise<IdentifiedResponse> : null).catch(() => null),
           fetch(api("wan/usage")).then(r => r.ok ? r.json() as Promise<Usage> : null).catch(() => null),
+          fetch(api("wan/collector-health")).then(r => r.ok ? r.json() as Promise<CollectorHealth> : null).catch(() => null),
         ]);
-        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.history?.samples ?? []); setWanError(w.error); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setObservations(savedObservations); setIdentified(identifiedDevices); setUsage(usageTotals); setError("");
+        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.history?.samples ?? []); setWanError(w.error); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setObservations(savedObservations); setIdentified(identifiedDevices); setUsage(usageTotals); setCollectorHealth(collectorState); setError("");
           if (host) { const old = previousCpu.current; const dt = host.cpu.total_ticks - (old?.total_ticks ?? host.cpu.total_ticks); const di = host.cpu.idle_ticks - (old?.idle_ticks ?? host.cpu.idle_ticks); setCpuUsage(old && dt > 0 && di >= 0 && di <= dt ? 100 * (1 - di / dt) : null); previousCpu.current = host.cpu; } else { previousCpu.current = null; setCpuUsage(null); } }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "API unavailable"); }
       finally { if (active) setLoading(false); }
@@ -175,6 +178,7 @@ export function App() {
       {(page === "Overview" || page === "WAN Traffic") && <>
         <div className="metrics">
           {metric("Router collector", status === "disabled" ? "Router polling disabled" : status === "enabled" ? "Router polling enabled" : status)}
+          {metric("Collector health", collectorHealth ? collectorHealth.state === "fresh" ? "Receiving data" : collectorHealth.state === "stale" ? "Stale measurements" : collectorHealth.state.replaceAll("_", " ") : "Unavailable")}
           {metric("WAN history", loading ? "Checking…" : wanError || (history.length ? "Measurements available" : "No measurements"))}
           {metric("Download", speed(latest?.download_bps))}
           {metric("Upload", speed(latest?.upload_bps))}
@@ -187,6 +191,10 @@ export function App() {
             {metric("Month downloaded", gigabytes(usage?.month_received_bytes))}
             {metric("Month uploaded", gigabytes(usage?.month_transmitted_bytes))}
           </div><p>Valid intervals: {usage?.accepted_intervals ?? "—"} · Skipped intervals: {usage?.skipped_intervals ?? "—"}</p>
+        </section>}
+        {page === "WAN Traffic" && <section><h2>Collector diagnostics</h2><p>Measurement freshness indicates whether the database has received a recent WAN sample. It does not identify the underlying cause of a polling failure.</p>
+          <p>State: <strong>{collectorHealth?.state ?? "Unavailable"}</strong> · Last sample: {collectorHealth?.last_sample_at ? new Date(collectorHealth.last_sample_at).toLocaleString() : "None"} · Age: {collectorHealth?.age_seconds == null ? "—" : collectorHealth.age_seconds.toFixed(1) + " seconds"}</p>
+          {collectorHealth?.state === "stale" && <div className="error" role="alert">WAN measurements are stale. Check the collector worker and router connectivity.</div>}
         </section>}
         <section><h2>WAN throughput</h2><p>Aggregate traffic measured by the router; not per-device bandwidth.</p>
           <div className="chart-controls"><label htmlFor="wan-period">History window</label><select id="wan-period" value={chartMinutes} onChange={e => setChartMinutes(Number(e.target.value))}>
