@@ -24,7 +24,7 @@ def test_fresh_install_initializes_without_router_polling(tmp_path, monkeypatch)
         assert status["wan_history"] == "no_measurements"
     with closing(sqlite3.connect(path)) as db:
         tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        assert tables == {"wan_samples", "remembered_devices", "device_observations", "device_aliases"}
+        assert tables == {"wan_samples", "remembered_devices", "device_observations", "device_observation_events", "device_aliases"}
 
 
 def test_startup_preserves_existing_device_data_and_is_repeatable(tmp_path, monkeypatch):
