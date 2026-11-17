@@ -3,6 +3,7 @@ import "./style.css";
 
 type Sample = { sampled_at: string; connected: string | null; download_bps: number | null; upload_bps: number | null };
 type History = { samples: Sample[]; count: number };
+type Usage = { day_received_bytes: number; day_transmitted_bytes: number; month_received_bytes: number; month_transmitted_bytes: number; accepted_intervals: number; skipped_intervals: number; coverage: string };
 type Status = { router_collection: string; database: "initialized" | "not_initialized" | "unavailable"; wan_history: "available" | "no_measurements" | "unavailable" };
 type ResourceAlert = { metric: string; percent: number; threshold: number; severity: string };
 type AlertsResponse = { alerts: ResourceAlert[]; count: number; mode: string };
@@ -51,6 +52,7 @@ export function App() {
   const [status, setStatus] = React.useState("Unknown");
   const [wanError, setWanError] = React.useState("");
   const [history, setHistory] = React.useState<Sample[]>([]);
+  const [usage, setUsage] = React.useState<Usage | null>(null);
   const [chartMinutes, setChartMinutes] = React.useState(5);
   const [aggregateHistory, setAggregateHistory] = React.useState<Sample[]>([]);
   const [aggregateError, setAggregateError] = React.useState("");
@@ -77,7 +79,7 @@ export function App() {
     let active = true;
     async function refresh() {
       try {
-        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed, savedObservations, identifiedDevices] = await Promise.all([
+        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed, savedObservations, identifiedDevices, usageTotals] = await Promise.all([
           fetch(api("health")).then(r => { if (!r.ok) throw Error("Health API unavailable"); return r.json(); }),
           fetch(api("status")).then(r => { if (!r.ok) throw Error("Status API unavailable"); return r.json() as Promise<Status>; }),
           fetch(api("wan/history?limit=300")).then(async r => {
@@ -92,8 +94,9 @@ export function App() {
           fetch(api("devices/neighbours")).then(r => r.ok ? r.json() as Promise<NeighboursResponse> : null).catch(() => null),
           fetch(api("devices/observations")).then(r => r.ok ? r.json() as Promise<ObservationResponse> : null).catch(() => null),
           fetch(api("devices/identified")).then(r => r.ok ? r.json() as Promise<IdentifiedResponse> : null).catch(() => null),
+          fetch(api("wan/usage")).then(r => r.ok ? r.json() as Promise<Usage> : null).catch(() => null),
         ]);
-        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.history?.samples ?? []); setWanError(w.error); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setObservations(savedObservations); setIdentified(identifiedDevices); setError("");
+        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.history?.samples ?? []); setWanError(w.error); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setObservations(savedObservations); setIdentified(identifiedDevices); setUsage(usageTotals); setError("");
           if (host) { const old = previousCpu.current; const dt = host.cpu.total_ticks - (old?.total_ticks ?? host.cpu.total_ticks); const di = host.cpu.idle_ticks - (old?.idle_ticks ?? host.cpu.idle_ticks); setCpuUsage(old && dt > 0 && di >= 0 && di <= dt ? 100 * (1 - di / dt) : null); previousCpu.current = host.cpu; } else { previousCpu.current = null; setCpuUsage(null); } }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "API unavailable"); }
       finally { if (active) setLoading(false); }
@@ -160,6 +163,7 @@ export function App() {
       return Number.isFinite(timestamp) && timestamp >= cutoff && timestamp <= end;
     });
   }, [history, latest?.sampled_at, chartMinutes, aggregateHistory]);
+  const gigabytes = (bytes: number | undefined) => bytes === undefined ? "—" : (bytes / 1_000_000_000).toFixed(3) + " GB";
   const pct = (part: number, total: number) => total > 0 ? (part / total * 100).toFixed(1) + "%" : "—";
   const metric = (label: string, value: string) => <div className="metric" key={label}><span>{label}</span><strong>{value}</strong></div>;
   return <div className="shell">
@@ -176,6 +180,14 @@ export function App() {
           {metric("Upload", speed(latest?.upload_bps))}
           {metric("WAN link", latest?.connected ?? "Unknown")}
         </div>
+        {page === "WAN Traffic" && <section><h2>WAN usage (UTC)</h2><p>Observed counter changes only. Missing polls, counter resets and retention can make these totals lower than actual usage.</p>
+          <div className="metrics">
+            {metric("Today downloaded", gigabytes(usage?.day_received_bytes))}
+            {metric("Today uploaded", gigabytes(usage?.day_transmitted_bytes))}
+            {metric("Month downloaded", gigabytes(usage?.month_received_bytes))}
+            {metric("Month uploaded", gigabytes(usage?.month_transmitted_bytes))}
+          </div><p>Valid intervals: {usage?.accepted_intervals ?? "—"} · Skipped intervals: {usage?.skipped_intervals ?? "—"}</p>
+        </section>}
         <section><h2>WAN throughput</h2><p>Aggregate traffic measured by the router; not per-device bandwidth.</p>
           <div className="chart-controls"><label htmlFor="wan-period">History window</label><select id="wan-period" value={chartMinutes} onChange={e => setChartMinutes(Number(e.target.value))}>
             <option value={5}>Last 5 minutes</option><option value={15}>Last 15 minutes</option><option value={25}>Last 25 minutes</option><option value={60}>Last hour</option><option value={1440}>Last 24 hours</option><option value={10080}>Last 7 days</option>

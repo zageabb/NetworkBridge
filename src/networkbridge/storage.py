@@ -100,3 +100,60 @@ def prune_wan_samples(db: sqlite3.Connection, retention_days: int,
     )
     db.commit()
     return cursor.rowcount
+
+
+def wan_usage(db: sqlite3.Connection, now: datetime | None = None) -> dict:
+    """Conservative UTC usage from consecutive counters, skipping resets and gaps."""
+    current = now or datetime.now(UTC)
+    if current.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    current = current.astimezone(UTC)
+    result = {
+        "day_received_bytes": 0, "day_transmitted_bytes": 0,
+        "month_received_bytes": 0, "month_transmitted_bytes": 0,
+        "accepted_intervals": 0, "skipped_intervals": 0,
+        "coverage": "partial_estimate",
+    }
+    if not wan_schema_exists(db):
+        return result
+    month_start = current.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    day_start = current.replace(hour=0, minute=0, second=0, microsecond=0)
+    rows = db.execute(
+        """SELECT sampled_at, router_uptime, received_bytes, transmitted_bytes
+           FROM wan_samples
+           WHERE julianday(sampled_at) >= julianday(?) - (120.0 / 86400.0)
+             AND julianday(sampled_at) <= julianday(?)
+           ORDER BY julianday(sampled_at), id""",
+        (month_start.isoformat(), current.isoformat()),
+    ).fetchall()
+    previous = None
+    for raw_time, uptime, received, transmitted in rows:
+        timestamp = datetime.fromisoformat(raw_time)
+        if timestamp.tzinfo is None:
+            result["skipped_intervals"] += 1
+            previous = None
+            continue
+        timestamp = timestamp.astimezone(UTC)
+        if previous is not None:
+            old_time, old_uptime, old_received, old_transmitted = previous
+            elapsed = (timestamp - old_time).total_seconds()
+            reset = (
+                uptime is not None and old_uptime is not None
+                and str(uptime).isdigit() and str(old_uptime).isdigit()
+                and int(uptime) < int(old_uptime)
+            )
+            if (0 < elapsed <= 120 and not reset
+                    and received >= old_received and transmitted >= old_transmitted):
+                delta_received = received - old_received
+                delta_transmitted = transmitted - old_transmitted
+                if timestamp >= month_start:
+                    result["month_received_bytes"] += delta_received
+                    result["month_transmitted_bytes"] += delta_transmitted
+                    if timestamp >= day_start:
+                        result["day_received_bytes"] += delta_received
+                        result["day_transmitted_bytes"] += delta_transmitted
+                    result["accepted_intervals"] += 1
+            else:
+                result["skipped_intervals"] += 1
+        previous = (timestamp, uptime, received, transmitted)
+    return result
