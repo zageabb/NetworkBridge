@@ -7,6 +7,8 @@ type History = { samples: Sample[]; count: number };
 type Status = { router_collection: string };
 type ResourceAlert = { metric: string; percent: number; threshold: number; severity: string };
 type AlertsResponse = { alerts: ResourceAlert[]; count: number; mode: string };
+type Neighbour = { name: string; address: string; mac: string; interface: string; source: string; state: string };
+type NeighboursResponse = { devices: Neighbour[]; collection: string; source: string };
 type Device = { name: string; address: string | null; connection_type: string | null; last_seen: string | null; observed_at: string };
 type DeviceInventory = { devices: Device[]; collection: string };
 type Environment = { operating_system: string; kernel: string; architecture: string; python_version: string; monitoring_mode: string };
@@ -38,6 +40,7 @@ function App() {
   const [services, setServices] = React.useState<Service[] | null>(null);
   const [environment, setEnvironment] = React.useState<Environment | null>(null);
   const [devices, setDevices] = React.useState<DeviceInventory | null>(null);
+  const [neighbours, setNeighbours] = React.useState<NeighboursResponse | null>(null);
   const [alerts, setAlerts] = React.useState<AlertsResponse | null>(null);
   const [deviceSearch, setDeviceSearch] = React.useState("");
   const [cpuUsage, setCpuUsage] = React.useState<number | null>(null);
@@ -48,7 +51,7 @@ function App() {
     let active = true;
     async function refresh() {
       try {
-        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts] = await Promise.all([
+        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed] = await Promise.all([
           fetch(api("health")).then(r => { if (!r.ok) throw Error("Health API unavailable"); return r.json(); }),
           fetch(api("status")).then(r => { if (!r.ok) throw Error("Status API unavailable"); return r.json() as Promise<Status>; }),
           fetch(api("wan/history?limit=300")).then(r => { if (!r.ok) throw Error("WAN history unavailable"); return r.json() as Promise<History>; }),
@@ -57,8 +60,9 @@ function App() {
           fetch(api("environment")).then(r => r.ok ? r.json() as Promise<Environment> : null).catch(() => null),
           fetch(api("devices")).then(r => r.ok ? r.json() as Promise<DeviceInventory> : null).catch(() => null),
           fetch(api("alerts")).then(r => r.ok ? r.json() as Promise<AlertsResponse> : null).catch(() => null),
+          fetch(api("devices/neighbours")).then(r => r.ok ? r.json() as Promise<NeighboursResponse> : null).catch(() => null),
         ]);
-        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.samples); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setError("");
+        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.samples); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setError("");
           if (host) { const old = previousCpu.current; const dt = host.cpu.total_ticks - (old?.total_ticks ?? host.cpu.total_ticks); const di = host.cpu.idle_ticks - (old?.idle_ticks ?? host.cpu.idle_ticks); setCpuUsage(old && dt > 0 && di >= 0 && di <= dt ? 100 * (1 - di / dt) : null); previousCpu.current = host.cpu; } else { previousCpu.current = null; setCpuUsage(null); } }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "API unavailable"); }
       finally { if (active) setLoading(false); }
@@ -108,14 +112,19 @@ function App() {
           ["Monitoring", environment.monitoring_mode],
         ] as [string,string][]).map(([name,value]) => <tr key={name}><th scope="row">{name}</th><td>{value}</td></tr>)}</tbody></table></div>
         : <div className="empty">Environment inventory unavailable.</div>}</section>}
-      {page === "Devices" && <section><h2>Remembered devices</h2><p>Stored inventory only; discovery requires a validated router parser. These records do not indicate live connectivity or per-device traffic.</p>
+      {page === "Devices" && <><section><h2>Recently observed LAN neighbours</h2><p>Passive Linux ARP cache only. Recently observed does not mean currently online. Other VLANs and uncontacted devices may be absent.</p>
+        <p>Discovery: {neighbours?.collection ?? "unavailable"} · {neighbours?.devices.length ?? 0} observed</p>
+        <div className="table-wrap"><table><thead><tr><th>IP address</th><th>MAC address</th><th>Interface</th><th>Observation</th></tr></thead><tbody>
+          {neighbours?.devices.filter(d => [d.address,d.mac,d.interface].some(v => v.toLowerCase().includes(deviceSearch.toLowerCase()))).map(d => <tr key={d.address}><td>{d.address}</td><td>{d.mac}</td><td>{d.interface}</td><td>Recently observed</td></tr>)}
+          {!neighbours?.devices.length && <tr><td colSpan={4}>No neighbours found. Enable NETWORKBRIDGE_NEIGHBOUR_DISCOVERY_ENABLED=true on the server to collect passive ARP entries.</td></tr>}
+        </tbody></table></div></section><section><h2>Remembered devices</h2><p>Stored router inventory; BT Smart Hub device parsing is not yet connected.</p>
         <p>Collection: {devices?.collection ?? "unavailable"}</p>
         <label htmlFor="device-search">Search devices</label>
         <input id="device-search" className="search" value={deviceSearch} onChange={e => setDeviceSearch(e.target.value)} placeholder="Search by name, address or connection" />
         <div className="table-wrap"><table><thead><tr><th>Name</th><th>Address</th><th>Connection</th><th>Last seen</th></tr></thead><tbody>
           {devices?.devices.filter(d => [d.name, d.address, d.connection_type].some(v => (v ?? "").toLowerCase().includes(deviceSearch.toLowerCase()))).map((d, i) => <tr key={d.name+i}><td>{d.name}</td><td>{d.address ?? "—"}</td><td>{d.connection_type ?? "Unknown"}</td><td>{d.last_seen ?? "Unknown"}</td></tr>)}
           {!devices?.devices.length && <tr><td colSpan={4}>No devices recorded. Discovery is not yet connected.</td></tr>}
-        </tbody></table></div></section>}
+        </tbody></table></div></section></>}
       {page === "Alerts" && <section><h2>Resource threshold alerts</h2><p>Live snapshot evaluation for memory and disk usage. Thresholds are configured on the server. No alert history, acknowledgement or notifications yet.</p>
         {!alerts ? <div className="empty">Resource alert status unavailable.</div> : alerts.count === 0 ? <div className="empty">No memory or disk thresholds exceeded in the latest sample.</div> :
           <div className="table-wrap"><table><thead><tr><th>Resource</th><th>Usage</th><th>Threshold</th><th>Severity</th></tr></thead><tbody>
