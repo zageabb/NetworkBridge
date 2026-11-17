@@ -10,7 +10,11 @@ from networkbridge.discovery import targets
 
 def test_private_subnet_bounds():
     assert len(targets("192.168.1.0/24")) == 254
-    for cidr in ("8.8.8.0/24", "192.168.0.0/16", "192.168.1.1/24", "::1/128"):
+    assert len(targets("10.12.3.0/24")) == 254
+    assert len(targets("172.16.2.0/24")) == 254
+    for cidr in ("8.8.8.0/24", "192.168.0.0/16", "192.168.1.1/24", "::1/128", "127.0.0.0/24",
+                 "169.254.1.0/24", "0.0.0.0/24", "100.64.0.0/24",
+                 "198.18.0.0/24"):
         with pytest.raises(ValueError):
             targets(cidr)
 
