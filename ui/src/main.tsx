@@ -5,6 +5,7 @@ import "./style.css";
 type Sample = { sampled_at: string; connected: string | null; download_bps: number | null; upload_bps: number | null };
 type History = { samples: Sample[]; count: number };
 type Status = { router_collection: string };
+type ServerHealth = { uptime_seconds: number; memory: { total_bytes: number; used_bytes: number }; disk: { total_bytes: number; available_bytes: number }; cpu: { total_ticks: number; idle_ticks: number } };
 const pages = ["Overview", "WAN Traffic", "Devices", "Server Health", "Services & Apps", "Environment Report", "Alerts", "Topology", "Settings"] as const;
 type Page = typeof pages[number];
 const api = (path: string) => new URL("api/" + path, document.baseURI).toString();
@@ -27,18 +28,20 @@ function App() {
   const [health, setHealth] = React.useState("Checking…");
   const [status, setStatus] = React.useState("Unknown");
   const [history, setHistory] = React.useState<Sample[]>([]);
+  const [server, setServer] = React.useState<ServerHealth | null>(null);
   const [error, setError] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   React.useEffect(() => {
     let active = true;
     async function refresh() {
       try {
-        const [h, s, w] = await Promise.all([
+        const [h, s, w, host] = await Promise.all([
           fetch(api("health")).then(r => { if (!r.ok) throw Error("Health API unavailable"); return r.json(); }),
           fetch(api("status")).then(r => { if (!r.ok) throw Error("Status API unavailable"); return r.json() as Promise<Status>; }),
           fetch(api("wan/history?limit=300")).then(r => { if (!r.ok) throw Error("WAN history unavailable"); return r.json() as Promise<History>; }),
+          fetch(api("server/health")).then(r => r.ok ? r.json() as Promise<ServerHealth> : null).catch(() => null),
         ]);
-        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.samples); setError(""); }
+        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.samples); setServer(host); setError(""); }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "API unavailable"); }
       finally { if (active) setLoading(false); }
     }
@@ -47,6 +50,7 @@ function App() {
     return () => { active = false; window.clearInterval(timer); };
   }, []);
   const latest = history.at(-1);
+  const pct = (part: number, total: number) => total > 0 ? (part / total * 100).toFixed(1) + "%" : "—";
   const metric = (label: string, value: string) => <div className="metric" key={label}><span>{label}</span><strong>{value}</strong></div>;
   return <div className="shell">
     <aside><div className="brand">NETWORKBRIDGE</div><p className="aside-note">Local monitoring</p><nav aria-label="Main navigation">{pages.map(name =>
@@ -68,7 +72,13 @@ function App() {
           {!history.length && <tr><td colSpan={4}>No WAN measurements recorded yet.</td></tr>}
         </tbody></table></div></section>}
       </>}
-      {page !== "Overview" && page !== "WAN Traffic" && <section><h2>{page}</h2><div className="empty">This screen is planned. No live integration is configured yet.</div>
+      {page === "Server Health" && <><div className="metrics">
+        {metric("Memory used", server ? pct(server.memory.used_bytes, server.memory.total_bytes) : "Unavailable")}
+        {metric("Disk used", server ? pct(server.disk.total_bytes - server.disk.available_bytes, server.disk.total_bytes) : "Unavailable")}
+        {metric("Uptime", server ? (server.uptime_seconds / 86400).toFixed(1) + " days" : "Unavailable")}
+        {metric("CPU usage", "Sampling pending")}
+      </div><section><h2>Host resources</h2><p>Read-only Linux /proc and filesystem snapshot. CPU utilisation requires two samples; no process names or identifiers are collected.</p></section></>}
+      {page !== "Overview" && page !== "WAN Traffic" && page !== "Server Health" && <section><h2>{page}</h2><div className="empty">This screen is planned. No live integration is configured yet.</div>
         {page === "Settings" && <p>Router collection is opt-in and requires verified TLS trust. Configuration is managed server-side.</p>}
         {page === "Devices" && <p>Remembered devices are not evidence of active bandwidth usage.</p>}
       </section>}
