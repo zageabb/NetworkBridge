@@ -7,6 +7,7 @@ type History = { samples: Sample[]; count: number };
 type Status = { router_collection: string };
 type ResourceAlert = { metric: string; percent: number; threshold: number; severity: string };
 type AlertsResponse = { alerts: ResourceAlert[]; count: number; mode: string };
+type DiscoveryResult = { devices: { address: string; state: string }[]; probed_hosts: number; note: string };
 type Neighbour = { name: string; address: string; mac: string; interface: string; source: string; state: string };
 type NeighboursResponse = { devices: Neighbour[]; collection: string; source: string };
 type Device = { name: string; address: string | null; connection_type: string | null; last_seen: string | null; observed_at: string };
@@ -41,6 +42,9 @@ function App() {
   const [environment, setEnvironment] = React.useState<Environment | null>(null);
   const [devices, setDevices] = React.useState<DeviceInventory | null>(null);
   const [neighbours, setNeighbours] = React.useState<NeighboursResponse | null>(null);
+  const [discovered, setDiscovered] = React.useState<DiscoveryResult | null>(null);
+  const [discovering, setDiscovering] = React.useState(false);
+  const [discoveryMessage, setDiscoveryMessage] = React.useState("");
   const [alerts, setAlerts] = React.useState<AlertsResponse | null>(null);
   const [deviceSearch, setDeviceSearch] = React.useState("");
   const [cpuUsage, setCpuUsage] = React.useState<number | null>(null);
@@ -71,6 +75,17 @@ function App() {
     const timer = window.setInterval(() => void refresh(), 10000);
     return () => { active = false; window.clearInterval(timer); };
   }, []);
+  async function discover() {
+    setDiscovering(true); setDiscoveryMessage("");
+    try {
+      const response = await fetch(api("devices/discover"), {method: "POST", headers: {"X-NetworkBridge-Action": "discover"}});
+      if (!response.ok) throw new Error(response.status === 403 ? "Active discovery is disabled on the server." : response.status === 429 ? "Please wait one minute between scans." : "Discovery failed.");
+      const result = await response.json() as DiscoveryResult;
+      setDiscovered(result);
+      setDiscoveryMessage("Checked " + result.probed_hosts + " addresses; " + result.devices.length + " hosts accepted TCP connections.");
+    } catch (e) { setDiscoveryMessage(e instanceof Error ? e.message : "Discovery unavailable"); }
+    finally { setDiscovering(false); }
+  }
   const latest = history.at(-1);
   const pct = (part: number, total: number) => total > 0 ? (part / total * 100).toFixed(1) + "%" : "—";
   const metric = (label: string, value: string) => <div className="metric" key={label}><span>{label}</span><strong>{value}</strong></div>;
@@ -112,7 +127,13 @@ function App() {
           ["Monitoring", environment.monitoring_mode],
         ] as [string,string][]).map(([name,value]) => <tr key={name}><th scope="row">{name}</th><td>{value}</td></tr>)}</tbody></table></div>
         : <div className="empty">Environment inventory unavailable.</div>}</section>}
-      {page === "Devices" && <><section><h2>Recently observed LAN neighbours</h2><p>Passive Linux ARP cache only. Recently observed does not mean currently online. Other VLANs and uncontacted devices may be absent.</p>
+      {page === "Devices" && <><section><h2>Active LAN discovery</h2><p>Optional, server-configured private-subnet TCP checks. This is an active network operation; only use it on networks you administer. Hosts with closed ports may be absent.</p>
+        <button disabled={discovering} onClick={() => void discover()}>{discovering ? "Checking LAN…" : "Discover LAN devices"}</button>
+        {discoveryMessage && <p role="status">{discoveryMessage}</p>}
+        {discovered && <div className="table-wrap"><table><thead><tr><th>IP address</th><th>Result</th></tr></thead><tbody>
+          {discovered.devices.map(d => <tr key={d.address}><td>{d.address}</td><td>{d.state}</td></tr>)}
+          {!discovered.devices.length && <tr><td colSpan={2}>No hosts accepted TCP connections on the checked ports.</td></tr>}
+        </tbody></table></div>}</section><section><h2>Recently observed LAN neighbours</h2><p>Passive Linux ARP cache only. Recently observed does not mean currently online. Other VLANs and uncontacted devices may be absent.</p>
         <p>Discovery: {neighbours?.collection ?? "unavailable"} · {neighbours?.devices.length ?? 0} observed</p>
         <div className="table-wrap"><table><thead><tr><th>IP address</th><th>MAC address</th><th>Interface</th><th>Observation</th></tr></thead><tbody>
           {neighbours?.devices.filter(d => [d.address,d.mac,d.interface].some(v => v.toLowerCase().includes(deviceSearch.toLowerCase()))).map(d => <tr key={d.address}><td>{d.address}</td><td>{d.mac}</td><td>{d.interface}</td><td>Recently observed</td></tr>)}

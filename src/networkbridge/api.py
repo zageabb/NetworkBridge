@@ -3,12 +3,13 @@
 import sqlite3
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.staticfiles import StaticFiles
 
 from networkbridge.alerts import evaluate
 from networkbridge.config import settings
 from networkbridge.devices import list_devices
+from networkbridge.discovery import scan
 from networkbridge.environment import environment_report
 from networkbridge.neighbours import neighbours
 from networkbridge.server import snapshot
@@ -113,6 +114,20 @@ def live_neighbours(limit: int = 250) -> dict[str, object]:
     except (OSError, ValueError):
         raise HTTPException(status_code=503, detail="Neighbour cache unavailable") from None
     return {"devices": found, "collection": "passive", "source": "linux_arp_cache"}
+
+
+@app.post("/api/devices/discover")
+async def discover_devices(x_networkbridge_action: str | None = Header(default=None)) -> dict:
+    if not settings.active_discovery_enabled or not settings.active_discovery_cidr:
+        raise HTTPException(status_code=403, detail="Active discovery is disabled")
+    if x_networkbridge_action != "discover":
+        raise HTTPException(status_code=403, detail="Explicit discovery action required")
+    try:
+        return await scan(settings.active_discovery_cidr)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid configured discovery subnet") from None
+    except RuntimeError:
+        raise HTTPException(status_code=429, detail="Discovery cooldown active") from None
 
 
 if settings.static_dir.is_dir():

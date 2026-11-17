@@ -50,3 +50,24 @@ integration or separately approved active discovery will be needed.
 To verify locally on Ubuntu, compare the Devices screen with `cat /proc/net/arp`
 (run on the same host and network namespace as NetworkBridge). Do not post
 actual MAC addresses, hostnames or router captures in GitHub issues.
+
+## Optional active LAN discovery
+
+To enable the **Discover LAN devices** button, set both variables in the API
+service environment and restart it:
+
+```sh
+NETWORKBRIDGE_ACTIVE_DISCOVERY_ENABLED=true
+NETWORKBRIDGE_ACTIVE_DISCOVERY_CIDR=192.168.1.0/24
+```
+
+Use the actual LAN CIDR, not the example, and only on a network you administer.
+Only strict private IPv4 subnets of /24 or smaller are accepted. A button click
+performs bounded TCP connection attempts to ports 22, 80, 443 and 445, with
+16 concurrent hosts and a one-minute process-local cooldown. A positive result
+means a TCP port accepted a connection at that moment, **not** that all devices
+were found. Closed ports, firewalls, isolated VLANs and sleeping machines may
+cause false negatives. No hostnames or MAC addresses are inferred from probes.
+
+The POST endpoint must remain behind UDA authentication; a custom action header
+is required. This operation is disabled by default and does not run periodically.
