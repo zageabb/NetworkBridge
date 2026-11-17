@@ -206,3 +206,14 @@ Device observation recency can be configured with
 `NETWORKBRIDGE_DEVICE_RECENCY_MINUTES=30` (allowed 1–1440; default 15).
 This changes labels only, not discovery frequency, and does not initiate
 background scans. The API returns the effective `recency_window_minutes`.
+
+## Device discovery event history
+
+Successful TCP probes from explicitly initiated LAN scans are appended to
+`device_observation_events` in SQLite, in addition to the existing per-IP
+summary. The read-only `GET /api/devices/observation-events` endpoint accepts
+`limit=1..500` (default 100) and optional exact `address` filter. The Devices
+screen displays the 100 latest positive events. Existing summary observations
+are not backfilled into individual events; no negative/offline events are
+inferred, and no background scanning is introduced. Future retention controls
+should bound the event table for long-running installations.
