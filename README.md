@@ -192,3 +192,12 @@ and its age. The default stale threshold is 30 seconds (six nominal 5-second
 polls). Freshness checks are read-only and do not contact the router. A stale
 sample is a symptom, not a definitive diagnosis: consult the WAN worker logs
 for sanitized failure reasons. The UI shows a warning for stale samples.
+
+## Device observation recency
+
+The opt-in `GET /api/devices/observations` response includes `recency`
+(`recent_positive`, `previously_observed`, or `unknown`) and
+`minutes_since_seen`. A positive TCP probe within the last 15 minutes is
+labelled recent; older observations remain visible. This is **not** a live
+online/offline determination: no background probing is added, and hosts that
+reject TCP probes may not appear. Historical IP addresses can be reassigned.
