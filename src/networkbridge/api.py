@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from networkbridge.config import settings
 from networkbridge.server import snapshot
+from networkbridge.services import check_services
 from networkbridge.storage import recent_wan
 
 app = FastAPI(title="NetworkBridge", version="0.2.0", docs_url=None, redoc_url=None)
@@ -55,6 +56,11 @@ def server_health() -> dict:
         return snapshot()
     except (OSError, ValueError, KeyError, IndexError):
         raise HTTPException(status_code=503, detail="Server metrics unavailable") from None
+
+
+@app.get("/api/services")
+def services() -> dict[str, object]:
+    return {"services": check_services(), "note": "Loopback TCP reachability only; not application health"}
 
 
 if settings.static_dir.is_dir():
