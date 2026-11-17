@@ -12,7 +12,7 @@ from networkbridge.devices import list_devices
 from networkbridge.discovery import scan
 from networkbridge.environment import environment_report
 from networkbridge.neighbours import neighbours
-from networkbridge.observations import record_scan, recent_observations
+from networkbridge.observations import recent_observations, record_scan
 from networkbridge.server import snapshot
 from networkbridge.services import check_services
 from networkbridge.storage import recent_wan
