@@ -7,6 +7,12 @@ Phase 2 worker opt-in:
 
 The worker collects only aggregate WAN counters via the read-only endpoint and writes timestamps, counters, link status, and calculated throughput to SQLite.
 
-**Do not enable on the actual router yet** if its certificate is not trusted by the host: TLS pinning / custom CA verification and real response schema validation are still outstanding. Never disable TLS verification to work around this.
+If the router certificate is not trusted by the host, save the verified router
+certificate outside the repository and set `NETWORKBRIDGE_ROUTER_TLS_CERTIFICATE`
+to its absolute path before enabling polling. NetworkBridge trusts that exact
+certificate as the TLS anchor while retaining certificate expiry and hostname/IP
+checks. Confirm its SHA-256 fingerprint out of band before installation. Replace
+the pin deliberately when the router certificate changes. Never disable TLS
+verification to work around a certificate failure.
 
 This increment does not parse client inventory, serve history via the web API, or create a real-time dashboard. It has no access to per-device bandwidth.
