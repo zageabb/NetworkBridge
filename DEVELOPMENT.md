@@ -28,15 +28,26 @@
   certificate expiry and hostname/IP validation.
 - Keep system CA verification as the default and reject missing certificate files.
 - Local validation: 64 Python tests, Ruff, 2 React regression tests and the
-  production TypeScript/Vite build pass. Ubuntu deployment and live sample evidence: pending.
+  production TypeScript/Vite build pass. Merged in
+  [PR #18](https://github.com/zageabb/NetworkBridge/pull/18) as `963e606`.
+- UDA deployed the release on 2026-11-17. The installed BT Hub certificate pin
+  matched the independently inspected SHA-256 fingerprint; expiry and IP SAN checks
+  remain active. The worker established verified HTTPS and received HTTP 200 responses.
+  User acceptance: pending.
 
 ## Live BT Hub WAN response parser — AWAITING ACCEPTANCE
 
 - Support the router's node/value XML shape and select its active WAN counter group
   using `wan_active_idx`, without executing router-supplied content.
 - Preserve support for the existing synthetic attribute-shaped fixtures.
-- Local validation is included in the 64-test suite above. Ubuntu sample and rate
-  verification and deployment evidence: pending.
+- Local validation is included in the 64-test suite above. Merged in
+  [PR #19](https://github.com/zageabb/NetworkBridge/pull/19) as `6f8e7af` and deployed
+  through UDA on 2026-11-17.
+- Live verification: router polling `enabled`; WAN history `available`; six samples
+  stored after deployment; the latest five all contained calculated upload/download
+  rates and link state `connected`; API and worker active with zero restarts; SQLite
+  quick check passed; the original 8 device observations remain present.
+  User acceptance: pending.
 
 ## Phase 1 — Foundation
 - [x] FastAPI health/status skeleton
