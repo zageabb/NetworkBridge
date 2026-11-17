@@ -18,7 +18,12 @@ from networkbridge.discovery import scan
 from networkbridge.environment import environment_report
 from networkbridge.identity import correlate
 from networkbridge.neighbours import neighbours
-from networkbridge.observations import observation_recency, recent_observations, record_scan
+from networkbridge.observations import (
+    observation_events,
+    observation_recency,
+    recent_observations,
+    record_scan,
+)
 from networkbridge.server import snapshot
 from networkbridge.services import check_services
 from networkbridge.storage import (
@@ -246,6 +251,30 @@ def observations(limit: int = 250) -> dict[str, object]:
             "collection": "positive_tcp_observations",
             "recency_window_minutes": settings.device_recency_minutes,
             "note": "Recency reflects last successful TCP probe, not current online status"}
+
+
+@app.get("/api/devices/observation-events")
+def device_observation_events(limit: int = 100, address: str | None = None) -> dict[str, object]:
+    if not 1 <= limit <= 500:
+        raise HTTPException(status_code=422, detail="limit must be 1..500")
+    if address is not None and (not address or len(address) > 45):
+        raise HTTPException(status_code=422, detail="Invalid address filter")
+    if not settings.active_discovery_enabled:
+        return {"events": [], "collection": "disabled"}
+    path = database_path(settings.database_url)
+    if not path.is_file():
+        return {"events": [], "collection": "not_initialized"}
+    try:
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)) as db:
+            events = observation_events(db, address, limit)
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc):
+            return {"events": [], "collection": "not_initialized"}
+        raise HTTPException(status_code=503, detail="Observation events unavailable") from None
+    except (OSError, ValueError, sqlite3.Error):
+        raise HTTPException(status_code=503, detail="Observation events unavailable") from None
+    return {"events": events, "collection": "positive_tcp_events",
+            "note": "Positive TCP responses only; absence of events does not imply offline"}
 
 
 @app.get("/api/devices/identified")
