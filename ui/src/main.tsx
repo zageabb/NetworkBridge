@@ -5,6 +5,7 @@ import "./style.css";
 type Sample = { sampled_at: string; connected: string | null; download_bps: number | null; upload_bps: number | null };
 type History = { samples: Sample[]; count: number };
 type Status = { router_collection: string };
+type Service = { name: string; port: number; state: string; probe: string };
 type ServerHealth = { uptime_seconds: number; memory: { total_bytes: number; used_bytes: number }; disk: { total_bytes: number; available_bytes: number }; cpu: { total_ticks: number; idle_ticks: number } };
 const pages = ["Overview", "WAN Traffic", "Devices", "Server Health", "Services & Apps", "Environment Report", "Alerts", "Topology", "Settings"] as const;
 type Page = typeof pages[number];
@@ -29,19 +30,24 @@ function App() {
   const [status, setStatus] = React.useState("Unknown");
   const [history, setHistory] = React.useState<Sample[]>([]);
   const [server, setServer] = React.useState<ServerHealth | null>(null);
+  const [services, setServices] = React.useState<Service[] | null>(null);
+  const [cpuUsage, setCpuUsage] = React.useState<number | null>(null);
+  const previousCpu = React.useRef<{ total_ticks: number; idle_ticks: number } | null>(null);
   const [error, setError] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   React.useEffect(() => {
     let active = true;
     async function refresh() {
       try {
-        const [h, s, w, host] = await Promise.all([
+        const [h, s, w, host, checks] = await Promise.all([
           fetch(api("health")).then(r => { if (!r.ok) throw Error("Health API unavailable"); return r.json(); }),
           fetch(api("status")).then(r => { if (!r.ok) throw Error("Status API unavailable"); return r.json() as Promise<Status>; }),
           fetch(api("wan/history?limit=300")).then(r => { if (!r.ok) throw Error("WAN history unavailable"); return r.json() as Promise<History>; }),
           fetch(api("server/health")).then(r => r.ok ? r.json() as Promise<ServerHealth> : null).catch(() => null),
+          fetch(api("services")).then(r => r.ok ? r.json() as Promise<{ services: Service[] }> : null).catch(() => null),
         ]);
-        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.samples); setServer(host); setError(""); }
+        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.samples); setServer(host); setServices(checks?.services ?? null); setError("");
+          if (host) { const old = previousCpu.current; const dt = host.cpu.total_ticks - (old?.total_ticks ?? host.cpu.total_ticks); const di = host.cpu.idle_ticks - (old?.idle_ticks ?? host.cpu.idle_ticks); setCpuUsage(old && dt > 0 && di >= 0 && di <= dt ? 100 * (1 - di / dt) : null); previousCpu.current = host.cpu; } else { previousCpu.current = null; setCpuUsage(null); } }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "API unavailable"); }
       finally { if (active) setLoading(false); }
     }
@@ -76,9 +82,14 @@ function App() {
         {metric("Memory used", server ? pct(server.memory.used_bytes, server.memory.total_bytes) : "Unavailable")}
         {metric("Disk used", server ? pct(server.disk.total_bytes - server.disk.available_bytes, server.disk.total_bytes) : "Unavailable")}
         {metric("Uptime", server ? (server.uptime_seconds / 86400).toFixed(1) + " days" : "Unavailable")}
-        {metric("CPU usage", "Sampling pending")}
-      </div><section><h2>Host resources</h2><p>Read-only Linux /proc and filesystem snapshot. CPU utilisation requires two samples; no process names or identifiers are collected.</p></section></>}
-      {page !== "Overview" && page !== "WAN Traffic" && page !== "Server Health" && <section><h2>{page}</h2><div className="empty">This screen is planned. No live integration is configured yet.</div>
+        {metric("CPU usage", cpuUsage === null ? "Sampling pending" : cpuUsage.toFixed(1) + "%")}
+      </div><section><h2>Host resources</h2><p>Read-only Linux /proc and filesystem snapshot. CPU utilisation is calculated from consecutive /proc samples; no process names or identifiers are collected.</p></section></>}
+      {page === "Services & Apps" && <section><h2>Local service reachability</h2><p>Fixed loopback TCP probes only. Reachable does not guarantee the application is healthy; reverse-proxied applications are not individually tested.</p>
+        <div className="table-wrap"><table><thead><tr><th>Service</th><th>Local port</th><th>Reachability</th></tr></thead><tbody>
+          {services?.map(service => <tr key={service.name}><td>{service.name}</td><td>{service.port}</td><td>{service.state}</td></tr>)}
+          {!services && <tr><td colSpan={3}>Service probes unavailable.</td></tr>}
+        </tbody></table></div></section>}
+      {page !== "Overview" && page !== "WAN Traffic" && page !== "Server Health" && page !== "Services & Apps" && <section><h2>{page}</h2><div className="empty">This screen is planned. No live integration is configured yet.</div>
         {page === "Settings" && <p>Router collection is opt-in and requires verified TLS trust. Configuration is managed server-side.</p>}
         {page === "Devices" && <p>Remembered devices are not evidence of active bandwidth usage.</p>}
       </section>}
