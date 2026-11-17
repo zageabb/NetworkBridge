@@ -11,7 +11,7 @@ type AlertsResponse = { alerts: ResourceAlert[]; count: number; mode: string };
 type DiscoveryResult = { devices: { address: string; state: string }[]; probed_hosts: number; note: string };
 type IdentifiedDevice = { label: string | null; address: string; mac: string | null; interface: string | null; last_positive_tcp: string | null; positive_scans: number; evidence: string[]; status: string };
 type IdentifiedResponse = { devices: IdentifiedDevice[]; collection: string };
-type Observation = { address: string; first_seen: string; last_seen: string; positive_scans: number; source: string };
+type Observation = { address: string; first_seen: string; last_seen: string; positive_scans: number; source: string; recency: string; minutes_since_seen: number | null };
 type ObservationResponse = { devices: Observation[]; collection: string };
 type Neighbour = { name: string; address: string; mac: string; interface: string; source: string; state: string };
 type NeighboursResponse = { devices: Neighbour[]; collection: string; source: string };
@@ -241,9 +241,9 @@ export function App() {
           {!discovered.devices.length && <tr><td colSpan={2}>No hosts accepted TCP connections on the checked ports.</td></tr>}
         </tbody></table></div>}</section><section><h2>Previously discovered devices</h2><p>Positive TCP responses retained between scans. A last-seen timestamp is not proof that the device is online now.</p>
         <p>Collection: {observations?.collection ?? "unavailable"}</p>
-        <div className="table-wrap"><table><thead><tr><th>IP address</th><th>First seen</th><th>Last positive response</th><th>Positive scans</th></tr></thead><tbody>
-        {observations?.devices.filter(d => d.address.includes(deviceSearch)).map(d => <tr key={d.address}><td>{d.address}</td><td>{d.first_seen}</td><td>{d.last_seen}</td><td>{d.positive_scans}</td></tr>)}
-        {!observations?.devices.length && <tr><td colSpan={4}>No successful active discovery observations stored yet.</td></tr>}
+        <div className="table-wrap"><table><thead><tr><th>IP address</th><th>First seen</th><th>Last positive response</th><th>Positive scans</th><th>Observation recency</th></tr></thead><tbody>
+        {observations?.devices.filter(d => d.address.includes(deviceSearch)).map(d => <tr key={d.address}><td>{d.address}</td><td>{d.first_seen}</td><td>{d.last_seen}</td><td>{d.positive_scans}</td><td>{d.recency === "recent_positive" ? "Seen in last 15 min" : d.recency === "previously_observed" ? "Previously observed" : "Unknown"}{d.minutes_since_seen == null ? "" : ` (${d.minutes_since_seen} min ago)`}</td></tr>)}
+        {!observations?.devices.length && <tr><td colSpan={5}>No successful active discovery observations stored yet.</td></tr>}
         </tbody></table></div></section><section><h2>Recently observed LAN neighbours</h2><p>Passive Linux ARP cache only. Recently observed does not mean currently online. Other VLANs and uncontacted devices may be absent.</p>
         <p>Discovery: {neighbours?.collection ?? "unavailable"} · {neighbours?.devices.length ?? 0} observed</p>
         <div className="table-wrap"><table><thead><tr><th>IP address</th><th>MAC address</th><th>Interface</th><th>Observation</th></tr></thead><tbody>
