@@ -21,7 +21,7 @@ from networkbridge.neighbours import neighbours
 from networkbridge.observations import recent_observations, record_scan
 from networkbridge.server import snapshot
 from networkbridge.services import check_services
-from networkbridge.storage import recent_wan, wan_schema_exists
+from networkbridge.storage import aggregated_wan, recent_wan, wan_schema_exists
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,23 @@ def wan_history(limit: int = 300) -> dict[str, object]:
     except (OSError, ValueError, sqlite3.Error):
         raise HTTPException(status_code=503, detail="WAN history unavailable") from None
     return {"samples": samples, "count": len(samples)}
+
+
+@app.get("/api/wan/aggregated")
+def wan_aggregated(hours: int = 1) -> dict[str, object]:
+    if hours not in (1, 24, 168):
+        raise HTTPException(status_code=422, detail="hours must be 1, 24 or 168")
+    try:
+        path = database_path(settings.database_url)
+        if not path.is_file():
+            samples = []
+        else:
+            with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)) as db:
+                samples = aggregated_wan(db, hours)
+    except (OSError, ValueError, sqlite3.Error):
+        raise HTTPException(status_code=503, detail="WAN aggregate history unavailable") from None
+    return {"samples": samples, "count": len(samples), "hours": hours,
+            "aggregation": "mean_valid_rate", "bucket_seconds": {1: 60, 24: 900, 168: 3600}[hours]}
 
 
 @app.get("/api/server/health")
