@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
+from networkbridge.alerts import evaluate
 from networkbridge.config import settings
 from networkbridge.devices import list_devices
 from networkbridge.environment import environment_report
@@ -87,6 +88,17 @@ def devices(limit: int = 250) -> dict[str, object]:
             return {"devices": [], "collection": "not_initialized"}
         raise HTTPException(status_code=503, detail="Device inventory unavailable") from None
     return {"devices": found, "collection": "stored_inventory"}
+
+
+@app.get("/api/alerts")
+def alerts() -> dict[str, object]:
+    try:
+        host = snapshot()
+        active = evaluate(host, settings.memory_alert_percent, settings.disk_alert_percent)
+    except (OSError, ValueError, KeyError, IndexError, TypeError):
+        raise HTTPException(status_code=503, detail="Resource alerts unavailable") from None
+    return {"alerts": active, "count": len(active), "sampled_at_unix": host["sampled_at_unix"],
+            "mode": "current_snapshot_only"}
 
 
 if settings.static_dir.is_dir():
