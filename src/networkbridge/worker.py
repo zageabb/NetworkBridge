@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from networkbridge.config import settings
 from networkbridge.database import database_path, initialize_database
 from networkbridge.router import SmartHubCollector, poll_wan
-from networkbridge.storage import add_wan_sample, connect
+from networkbridge.storage import add_wan_sample, connect, prune_wan_samples
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +23,16 @@ async def run() -> None:
     db = connect(path)
     collector = SmartHubCollector(settings.router_url, settings.router_tls_certificate)
 
+    last_prune_date = None
+
     async def save(sample: dict, rate: tuple[float, float] | None) -> None:
-        timestamp = datetime.now(UTC).isoformat()
-        add_wan_sample(db, timestamp, sample, rate)
+        nonlocal last_prune_date
+        now = datetime.now(UTC)
+        add_wan_sample(db, now.isoformat(), sample, rate)
+        if settings.wan_retention_days > 0 and last_prune_date != now.date():
+            removed = prune_wan_samples(db, settings.wan_retention_days, now)
+            last_prune_date = now.date()
+            logger.info("WAN retention housekeeping completed: deleted_rows=%d", removed)
 
     try:
         logger.info("WAN collector enabled (read-only)")
