@@ -7,8 +7,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
 from networkbridge.config import settings
-from networkbridge.storage import recent_wan
 from networkbridge.server import snapshot
+from networkbridge.storage import recent_wan
 
 app = FastAPI(title="NetworkBridge", version="0.2.0", docs_url=None, redoc_url=None)
 
