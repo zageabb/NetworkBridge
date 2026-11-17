@@ -173,3 +173,13 @@ at least seven days if you need the full 7-day WAN chart. This does not delete
 device observations, labels or other tables. SQLite may retain freed disk pages
 until a separately scheduled, maintenance-window VACUUM; no automatic VACUUM
 runs during polling.
+
+## Observed WAN data usage
+
+`GET /api/wan/usage` reports today's and this month's observed download and
+upload byte totals in UTC. Values are sums of consecutive router counter deltas
+with at most 120 seconds between samples. Counter decreases, detected uptime
+resets and longer gaps are skipped, so figures are **partial estimates**, not
+ISP billing totals. Deltas are assigned to the later sample's UTC day/month;
+intervals crossing midnight are not split. Retention and missing measurements
+reduce historical coverage. No device-specific usage is inferred.
