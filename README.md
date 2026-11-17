@@ -183,3 +183,12 @@ resets and longer gaps are skipped, so figures are **partial estimates**, not
 ISP billing totals. Deltas are assigned to the later sample's UTC day/month;
 intervals crossing midnight are not split. Retention and missing measurements
 reduce historical coverage. No device-specific usage is inferred.
+
+## WAN collector freshness
+
+`GET /api/wan/collector-health` reports `disabled`, `no_measurements`,
+`fresh`, `stale`, or `invalid_timestamp` with the last persisted WAN sample
+and its age. The default stale threshold is 30 seconds (six nominal 5-second
+polls). Freshness checks are read-only and do not contact the router. A stale
+sample is a symptom, not a definitive diagnosis: consult the WAN worker logs
+for sanitized failure reasons. The UI shows a warning for stale samples.

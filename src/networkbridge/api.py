@@ -21,7 +21,13 @@ from networkbridge.neighbours import neighbours
 from networkbridge.observations import recent_observations, record_scan
 from networkbridge.server import snapshot
 from networkbridge.services import check_services
-from networkbridge.storage import aggregated_wan, recent_wan, wan_schema_exists, wan_usage
+from networkbridge.storage import (
+    aggregated_wan,
+    recent_wan,
+    wan_freshness,
+    wan_schema_exists,
+    wan_usage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +81,22 @@ def status() -> dict[str, object]:
         "database": database,
         "wan_history": history,
     }
+
+
+@app.get("/api/wan/collector-health")
+def collector_health() -> dict:
+    if not settings.router_polling_enabled:
+        return {"state": "disabled", "last_sample_at": None, "age_seconds": None,
+                "stale_after_seconds": 30}
+    try:
+        path = database_path(settings.database_url)
+        if not path.is_file():
+            return {"state": "no_measurements", "last_sample_at": None,
+                    "age_seconds": None, "stale_after_seconds": 30}
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)) as db:
+            return wan_freshness(db)
+    except (OSError, ValueError, sqlite3.Error):
+        raise HTTPException(status_code=503, detail="WAN collector health unavailable") from None
 
 
 @app.get("/api/wan/history")

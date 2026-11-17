@@ -30,3 +30,9 @@ def test_aggregated_history_empty_database(tmp_path, monkeypatch):
         "samples": [], "count": 0, "hours": 24,
         "aggregation": "mean_valid_rate", "bucket_seconds": 900,
     }
+
+
+def test_collector_health_disabled():
+    response = TestClient(app).get("/api/wan/collector-health")
+    assert response.status_code == 200
+    assert response.json()["state"] == "disabled"
