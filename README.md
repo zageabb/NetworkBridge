@@ -140,3 +140,13 @@ and are displayed only when a matching MAC is present in the current ARP cache.
 They do not attach to IP addresses, so DHCP changes do not carry labels to a
 new occupant. MAC addresses may also be spoofed or randomized, so labels are
 operator annotations, not a verified device identity.
+
+## WAN polling diagnostics
+
+The independent WAN worker logs sanitized failure categories on the first failed
+poll and every twelfth consecutive failed poll (roughly once per minute at the
+default five-second interval). A successful sample logs recovery and resets the
+failure counter. Categories include router HTTP status, timeout, connection and
+invalid router response; router addresses, raw responses and exception messages
+are not logged. Inspect the worker's systemd journal when WAN history stays empty.
+A running worker does not prove that the router's endpoint is compatible.
