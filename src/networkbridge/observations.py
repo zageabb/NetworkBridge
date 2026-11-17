@@ -14,6 +14,14 @@ def ensure_schema(db: sqlite3.Connection) -> None:
         positive_scans INTEGER NOT NULL DEFAULT 1,
         source TEXT NOT NULL
     )""")
+    db.execute("""CREATE TABLE IF NOT EXISTS device_observation_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        address TEXT NOT NULL,
+        observed_at TEXT NOT NULL,
+        source TEXT NOT NULL
+    )""")
+    db.execute("""CREATE INDEX IF NOT EXISTS idx_device_observation_events_time
+                  ON device_observation_events(observed_at DESC)""")
     db.commit()
 
 
@@ -31,6 +39,8 @@ def record_scan(db: sqlite3.Connection, devices: list[dict[str, str]]) -> None:
               last_seen=excluded.last_seen,
               positive_scans=device_observations.positive_scans+1""",
                    (device["address"], timestamp, timestamp))
+        db.execute("""INSERT INTO device_observation_events (address, observed_at, source)
+                      VALUES (?, ?, ?)""", (device["address"], timestamp, "tcp_probe"))
     db.commit()
 
 
@@ -71,3 +81,23 @@ def observation_recency(devices: list[dict[str, object]],
             row["recency"] = "unknown"
         result.append(row)
     return result
+
+
+def observation_events(db: sqlite3.Connection, address: str | None = None,
+                       limit: int = 100) -> list[dict[str, object]]:
+    """Recent positive scan events only; never synthesise negative observations."""
+    if not 1 <= limit <= 500:
+        raise ValueError("limit must be 1..500")
+    if address is not None and (not address or len(address) > 45):
+        raise ValueError("Invalid address filter")
+    if address is None:
+        rows = db.execute(
+            "SELECT address, observed_at, source FROM device_observation_events "
+            "ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT address, observed_at, source FROM device_observation_events "
+            "WHERE address = ? ORDER BY id DESC LIMIT ?", (address, limit)
+        ).fetchall()
+    return [dict(zip(("address", "observed_at", "source"), row)) for row in rows]
