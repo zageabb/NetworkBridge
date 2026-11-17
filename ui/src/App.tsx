@@ -272,7 +272,7 @@ export function App() {
         <select id="event-limit" value={eventLimit} onChange={e => setEventLimit(Number(e.target.value))}>
           <option value={25}>25</option><option value={100}>100</option><option value={250}>250</option><option value={500}>500</option>
         </select>
-        {eventHistoryError && <p role="alert">{eventHistoryError}</p>}
+        {eventHistoryError && <p role="status">{eventHistoryError}</p>}
         <div className="table-wrap"><table><thead><tr><th>IP address</th><th>Observed at</th><th>Source</th></tr></thead><tbody>
           {observationEvents?.events.filter(d => d.address.includes(deviceSearch)).map((d, i) => <tr key={d.address + d.observed_at + i}><td>{d.address}</td><td>{d.observed_at}</td><td>{d.source}</td></tr>)}
           {!observationEvents?.events.length && <tr><td colSpan={3}>No positive discovery events stored yet.</td></tr>}
