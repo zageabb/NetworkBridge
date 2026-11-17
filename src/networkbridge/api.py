@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
 from networkbridge.config import settings
+from networkbridge.environment import environment_report
 from networkbridge.server import snapshot
 from networkbridge.services import check_services
 from networkbridge.storage import recent_wan
@@ -61,6 +62,11 @@ def server_health() -> dict:
 @app.get("/api/services")
 def services() -> dict[str, object]:
     return {"services": check_services(), "note": "Loopback TCP reachability only; not application health"}
+
+
+@app.get("/api/environment")
+def environment() -> dict[str, str]:
+    return environment_report()
 
 
 if settings.static_dir.is_dir():
