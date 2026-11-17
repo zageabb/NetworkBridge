@@ -83,3 +83,13 @@ firewalls, sleeping hosts and closed ports can produce false negatives.
 These records are keyed by IP address, not permanent device identity; DHCP
 reassignment can associate one IP with different machines over time. Future
 router-assisted MAC identification is needed for reliable device identities.
+
+## Correlated device evidence
+
+When either passive ARP or active discovery is enabled, the Devices screen
+combines current ARP entries with stored positive TCP observations using their
+IPv4 address. `GET /api/devices/identified` returns IP, currently observed
+MAC/interface (if available), positive scan count and last TCP response.
+This join is temporary evidence only: DHCP can reassign addresses, and a
+previously observed MAC must not be attributed to a different future occupant
+of that IP. No online/offline classification is asserted.
