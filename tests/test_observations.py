@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -8,6 +8,7 @@ from networkbridge.api import app
 from networkbridge.observations import (
     observation_events,
     observation_recency,
+    prune_observation_events,
     recent_observations,
     record_scan,
 )
@@ -92,3 +93,34 @@ def test_observation_events_api_disabled_and_invalid_limit():
     assert response.status_code == 200
     assert response.json()["collection"] == "disabled"
     assert TestClient(app).get("/api/devices/observation-events?limit=501").status_code == 422
+
+
+def test_device_event_retention_preserves_summary_and_recent_events():
+    now = datetime(2026, 11, 17, 12, tzinfo=UTC)
+    with sqlite3.connect(":memory:") as db:
+        record_scan(db, [{"address": "192.0.2.5", "state": "tcp_reachable"}])
+        db.execute(
+            "UPDATE device_observation_events SET observed_at = ?",
+            ((now - timedelta(days=40)).isoformat(),),
+        )
+        db.execute(
+            "INSERT INTO device_observation_events (address, observed_at, source) "
+            "VALUES (?, ?, ?)",
+            ("192.0.2.5", (now - timedelta(days=2)).isoformat(), "tcp_probe"),
+        )
+        db.commit()
+        assert prune_observation_events(db, 30, now) == 1
+        assert len(observation_events(db)) == 1
+        assert len(recent_observations(db)) == 1
+        assert prune_observation_events(db, 0, now) == 0
+
+
+def test_device_event_retention_rejects_invalid_values():
+    import pytest
+
+    with sqlite3.connect(":memory:") as db:
+        for days in (-1, 3651):
+            with pytest.raises(ValueError):
+                prune_observation_events(db, days)
+        with pytest.raises(ValueError):
+            prune_observation_events(db, 30, datetime(2026, 11, 17))
