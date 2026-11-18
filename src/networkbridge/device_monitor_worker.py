@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sqlite3
+from contextlib import closing
 
 from networkbridge.config import settings
+from networkbridge.database import database_path, initialize_database
 from networkbridge.discovery import probe
+from networkbridge.monitor_history import record_checks
 from networkbridge.monitoring import validate_targets
 
 logger = logging.getLogger(__name__)
@@ -35,8 +39,11 @@ async def run() -> None:
     threshold = settings.device_monitoring_failure_threshold
     failures = dict.fromkeys(targets, 0)
     logger.info("Monitoring %d configured targets; no alerts or offline verdicts", len(targets))
+    initialize_database(settings.database_url)
     while True:
         results = await check_once(targets)
+        with closing(sqlite3.connect(database_path(settings.database_url))) as db:
+            record_checks(db, results)
         for address, reachable in results.items():
             failures[address] = 0 if reachable else min(threshold, failures[address] + 1)
             if reachable:
