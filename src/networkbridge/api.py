@@ -17,6 +17,7 @@ from networkbridge.devices import list_devices
 from networkbridge.discovery import scan
 from networkbridge.environment import environment_report
 from networkbridge.identity import correlate
+from networkbridge.monitor_history import recent_checks
 from networkbridge.monitoring import monitoring_preflight
 from networkbridge.neighbours import neighbours
 from networkbridge.observations import (
@@ -258,6 +259,26 @@ def observations(limit: int = 250) -> dict[str, object]:
             "collection": "positive_tcp_observations",
             "recency_window_minutes": settings.device_recency_minutes,
             "note": "Recency reflects last successful TCP probe, not current online status"}
+
+
+@app.get("/api/devices/monitoring-history")
+def device_monitoring_history(limit: int = 100, address: str | None = None) -> dict[str, object]:
+    if not 1 <= limit <= 500 or (address is not None and (not address or len(address) > 45)):
+        raise HTTPException(status_code=422, detail="Invalid monitoring history filter")
+    path = database_path(settings.database_url)
+    if not path.is_file():
+        return {"checks": [], "collection": "not_initialized"}
+    try:
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)) as db:
+            checks = recent_checks(db, limit, address)
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc):
+            return {"checks": [], "collection": "not_initialized"}
+        raise HTTPException(status_code=503, detail="Monitoring history unavailable") from None
+    except (OSError, ValueError, sqlite3.Error):
+        raise HTTPException(status_code=503, detail="Monitoring history unavailable") from None
+    return {"checks": checks, "collection": "opt_in_tcp_checks",
+            "note": "No TCP response is inconclusive, not proof of an offline device"}
 
 
 @app.get("/api/devices/monitoring-preflight")
