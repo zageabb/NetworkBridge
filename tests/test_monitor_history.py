@@ -1,8 +1,8 @@
 import sqlite3
-
-import pytest
 from datetime import UTC, datetime
 from unittest.mock import patch
+
+import pytest
 
 from fastapi.testclient import TestClient
 
