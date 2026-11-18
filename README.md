@@ -289,3 +289,12 @@ opt-in worker runs**. Set to `0` to disable pruning, or 1–3650 days for a
 custom window. Pruning affects only `device_monitor_checks`, not manual
 discovery observations, WAN history, or device aliases. If the worker is not
 running, retention housekeeping does not run either.
+
+### Plusnet Hub Two inventory parser (experimental)
+
+`networkbridge.plusnet_inventory.parse_inventory` parses a bounded
+`known_device_list` response from `/cgi/cgi_basicMyDevice.js` without
+executing JavaScript. It returns per-interface MAC/IP, router activity,
+connection and DHCP/static evidence. This does not establish a definitive
+online state or full DHCP lease table. No login, polling or persistence is
+activated in this increment.
