@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 
 import httpx
@@ -24,6 +25,70 @@ def test_http_router_rejected():
         PlusnetHubTwoClient("http://192.168.1.254")
 
 
-@pytest.mark.asyncio
-async def test_placeholder():
-    pass
+def test_authentication_and_inventory():
+    calls = []
+
+    def handler(request):
+        calls.append((request.method, request.url.path))
+        if request.url.path == "/cgi/cgi_basicMyDevice.js" and not any(
+            path == "/login.cgi" for _, path in calls
+        ):
+            return httpx.Response(403, text="Forbidden")
+        if request.url.path == "/login.cgi":
+            assert b"usr=admin" in request.content
+            assert b"pws=" in request.content
+            return httpx.Response(200, text="ok")
+        if request.url.path == "/cgi/cgi_basicMyDevice.js":
+            return httpx.Response(
+                200,
+                text='var known_device_list = [{mac:"AA:BB:CC:DD:EE:FF",'
+                     'ip:"192.168.1.4",activity:"1",dhcp_option:"NA"}];',
+            )
+        return httpx.Response(200, text="home")
+
+    async def run():
+        client = PlusnetHubTwoClient("https://192.168.1.254", "test123")
+        await client._client.aclose()
+        client._client = httpx.AsyncClient(
+            base_url="https://192.168.1.254",
+            transport=httpx.MockTransport(handler),
+        )
+        try:
+            devices = await client.inventory()
+            assert len(devices) == 1
+            assert devices[0]["router_active"] is True
+            assert calls == [
+                ("GET", "/cgi/cgi_basicMyDevice.js"),
+                ("GET", "/"),
+                ("POST", "/login.cgi"),
+                ("GET", "/cgi/cgi_basicMyDevice.js"),
+            ]
+        finally:
+            await client.close()
+
+    asyncio.run(run())
+
+
+def test_login_error_prevents_repeat():
+    async def run():
+        client = PlusnetHubTwoClient("https://192.168.1.254", "test123")
+        await client._client.aclose()
+
+        def handler(request):
+            if request.url.path == "/login.cgi":
+                return httpx.Response(200, text="login_lock")
+            return httpx.Response(200, text="home")
+
+        client._client = httpx.AsyncClient(
+            base_url="https://192.168.1.254",
+            transport=httpx.MockTransport(handler),
+        )
+        try:
+            with pytest.raises(RouterLoginError):
+                await client.login()
+            with pytest.raises(RouterLoginError):
+                await client.login()
+        finally:
+            await client.close()
+
+    asyncio.run(run())
