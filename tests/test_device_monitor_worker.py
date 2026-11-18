@@ -18,9 +18,8 @@ def test_disabled_worker_never_probes():
 def test_enabled_worker_requires_targets():
     with patch.object(settings, "device_monitoring_enabled", True), (
         patch.object(settings, "device_monitoring_targets", "8.8.8.8")
-    ):
-        with pytest.raises(ValueError):
-            asyncio.run(worker.run())
+    ), pytest.raises(ValueError):
+        asyncio.run(worker.run())
 
 
 def test_check_once_only_configured_targets():
