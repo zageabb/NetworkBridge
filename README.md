@@ -255,3 +255,17 @@ default 3). `GET /api/devices/monitoring-preflight` validates these settings
 without contacting devices. **Even when enabled, this release performs no
 background probes, notifications or offline classification.** A later separate
 worker and explicit alert controls are required.
+
+## Standalone device monitoring worker (experimental)
+
+The optional `python -m networkbridge.device_monitor_worker` process checks
+only explicitly configured RFC1918 IPv4 addresses, with up to 8 concurrent
+TCP checks. It **exits without probing** when
+`NETWORKBRIDGE_DEVICE_MONITORING_ENABLED=false` (default). To opt in,
+set the flag to `true`, configure `NETWORKBRIDGE_DEVICE_MONITORING_TARGETS`
+(e.g. `192.168.1.10,192.168.1.11`), and **separately start the worker**.
+It does not run as part of the API or WAN collector. It records no database
+results, sends no notifications and never asserts that a device is offline.
+Repeated missing TCP responses are logged as inconclusive evidence only.
+Do not deploy or schedule this worker until the operator has authorised the
+specific targets and understands the traffic generated.
