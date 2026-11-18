@@ -36,9 +36,9 @@ def test_check_once_only_configured_targets():
 def test_enabled_worker_runs_one_cycle_without_alerts():
     with patch.object(settings, "device_monitoring_enabled", True), (
         patch.object(settings, "device_monitoring_targets", "192.168.1.10")
-    ), patch.object(worker, "check_once", new_callable=AsyncMock) as check, (
-        patch.object(worker.asyncio, "sleep", new_callable=AsyncMock) as sleep
-    ):
+    ), patch.object(worker, "check_once", new_callable=AsyncMock) as check, patch.object(
+        worker.asyncio, "sleep", new_callable=AsyncMock
+    ) as sleep:
         check.return_value = {"192.168.1.10": False}
         sleep.side_effect = asyncio.CancelledError
         with pytest.raises(asyncio.CancelledError):
