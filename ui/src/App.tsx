@@ -14,6 +14,8 @@ type IdentifiedResponse = { devices: IdentifiedDevice[]; collection: string };
 type Observation = { address: string; first_seen: string; last_seen: string; positive_scans: number; source: string; recency: string; minutes_since_seen: number | null };
 type ObservationEvent = { address: string; observed_at: string; source: string };
 type ObservationEventsResponse = { events: ObservationEvent[]; collection: string };
+type MonitorCheck = { address: string; checked_at: string; result: "tcp_responded" | "no_tcp_response"; availability_verdict: string };
+type MonitorHistory = { checks: MonitorCheck[]; collection: string; note?: string };
 type MonitoringReadiness = { state: string; observed_addresses: number; recent_positive?: number; previously_observed?: number; unknown_timestamp?: number; availability_verdict: string; alerts_enabled: boolean };
 type ObservationResponse = { devices: Observation[]; collection: string; recency_window_minutes?: number };
 type Neighbour = { name: string; address: string; mac: string; interface: string; source: string; state: string };
@@ -70,6 +72,28 @@ export function App() {
   const [observations, setObservations] = React.useState<ObservationResponse | null>(null);
   const [monitoringReadiness, setMonitoringReadiness] = React.useState<MonitoringReadiness | null>(null);
   const [observationEvents, setObservationEvents] = React.useState<ObservationEventsResponse | null>(null);
+  const [monitorHistory, setMonitorHistory] = React.useState<MonitorHistory | null>(null);
+  const [monitorHistoryError, setMonitorHistoryError] = React.useState("");
+  const [monitorAddress, setMonitorAddress] = React.useState("");
+  const [monitorLimit, setMonitorLimit] = React.useState(100);
+  React.useEffect(() => {
+    let active = true;
+    const params = new URLSearchParams({ limit: String(monitorLimit) });
+    if (monitorAddress.trim()) params.set("address", monitorAddress.trim());
+    async function load() {
+      try {
+        const response = await fetch(api("devices/monitoring-history?" + params.toString()));
+        if (!response.ok) throw new Error("Monitoring history unavailable");
+        const data = await response.json() as MonitorHistory;
+        if (active) { setMonitorHistory(data); setMonitorHistoryError(""); }
+      } catch {
+        if (active) { setMonitorHistory(null); setMonitorHistoryError("Could not load monitoring history."); }
+      }
+    }
+    void load();
+    const timer = window.setInterval(() => void load(), 30000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [monitorAddress, monitorLimit]);
   const [eventAddress, setEventAddress] = React.useState("");
   const [eventLimit, setEventLimit] = React.useState(100);
   const [eventHistoryError, setEventHistoryError] = React.useState("");
@@ -249,6 +273,24 @@ export function App() {
         <p>Observation evidence only. Availability checks and device alerts are not enabled; an old observation does not mean a device is offline.</p>
         <p>State: {monitoringReadiness?.state ?? "unavailable"} · Observed addresses: {monitoringReadiness?.observed_addresses ?? "—"} · Recent positive: {monitoringReadiness?.recent_positive ?? "—"} · Historical: {monitoringReadiness?.previously_observed ?? "—"}</p>
         <p>Availability verdict: {monitoringReadiness?.availability_verdict ?? "not evaluated"} · Alerts: {monitoringReadiness?.alerts_enabled ? "enabled" : "disabled"}</p>
+        </section><section><h2>Device TCP monitoring history</h2>
+        <p>Checks are recorded only when the separate opt-in monitoring worker is running. No TCP response is inconclusive and does not establish that a device is offline. No device alerts are enabled.</p>
+        <p>Collection: {monitorHistory?.collection ?? "unavailable"}</p>
+        <label htmlFor="monitor-address">Filter by monitored IP address</label>
+        <input id="monitor-address" className="search" value={monitorAddress} onChange={e => setMonitorAddress(e.target.value)} placeholder="All monitored IP addresses" />
+        <label htmlFor="monitor-limit">Maximum checks</label>
+        <select id="monitor-limit" value={monitorLimit} onChange={e => setMonitorLimit(Number(e.target.value))}>
+          <option value={25}>25</option><option value={100}>100</option><option value={250}>250</option><option value={500}>500</option>
+        </select>
+        {monitorHistoryError && <p role="status">{monitorHistoryError}</p>}
+        <div className="table-wrap"><table><thead><tr><th>IP address</th><th>Checked at</th><th>TCP check</th><th>Availability</th></tr></thead><tbody>
+          {monitorHistory?.checks.map((check, i) => <tr key={check.address + check.checked_at + i}>
+            <td>{check.address}</td><td>{new Date(check.checked_at).toLocaleString()}</td>
+            <td>{check.result === "tcp_responded" ? "TCP response received" : "No TCP response (inconclusive)"}</td>
+            <td>Not evaluated</td>
+          </tr>)}
+          {!monitorHistory?.checks.length && <tr><td colSpan={4}>No monitoring checks stored yet. Monitoring is disabled unless the separate worker is explicitly started.</td></tr>}
+        </tbody></table></div>
         </section><section><h2>Combined device evidence</h2><p>Current ARP MAC/interface data joined to historical positive TCP responses by IP address. IP addresses may be reassigned; this is not permanent identity or proof of online status.</p>
         <label htmlFor="device-search">Search devices</label>
         <input id="device-search" className="search" value={deviceSearch} onChange={e => setDeviceSearch(e.target.value)} placeholder="IP address, MAC or interface" />
