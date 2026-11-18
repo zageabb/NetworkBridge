@@ -280,3 +280,12 @@ the latter is **inconclusive**, not an offline verdict. The API is read-only
 and does not start the worker. Monitoring data is separate from manual
 positive-only discovery observations. Retention and dashboard display are
 future increments.
+
+### Monitoring check retention
+
+`NETWORKBRIDGE_DEVICE_MONITORING_RETENTION_DAYS=30` (default) removes
+monitoring checks older than 30 days once per UTC day **while the separate
+opt-in worker runs**. Set to `0` to disable pruning, or 1–3650 days for a
+custom window. Pruning affects only `device_monitor_checks`, not manual
+discovery observations, WAN history, or device aliases. If the worker is not
+running, retention housekeeping does not run either.
