@@ -5,6 +5,7 @@ from pathlib import Path
 
 from networkbridge.aliases import ensure_schema as ensure_alias_schema
 from networkbridge.devices import ensure_device_schema
+from networkbridge.monitor_history import ensure_schema as ensure_monitor_schema
 from networkbridge.observations import ensure_schema as ensure_observation_schema
 from networkbridge.storage import connect
 
@@ -23,3 +24,4 @@ def initialize_database(url: str) -> None:
         ensure_device_schema(db)
         ensure_observation_schema(db)
         ensure_alias_schema(db)
+        ensure_monitor_schema(db)
