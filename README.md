@@ -298,3 +298,15 @@ executing JavaScript. It returns per-interface MAC/IP, router activity,
 connection and DHCP/static evidence. This does not establish a definitive
 online state or full DHCP lease table. No login, polling or persistence is
 activated in this increment.
+
+### Experimental Plusnet Hub Two session client
+
+`networkbridge.plusnet_client.PlusnetHubTwoClient` can make a read-only
+inventory request, and, on HTTP 401/403, attempt one password-only login
+using the Hub Two `/login.cgi` protocol. The password must be supplied by
+the caller from a private secret source; it is never committed to the repo.
+TLS certificate validation remains enabled, including support for an explicitly
+trusted router certificate. The client does **not** run automatically, change
+router configuration, persist devices, or expose a public API endpoint.
+The login sequence is tested against a mock router, not verified on physical
+Hub Two firmware; deployment must remain disabled pending hardware validation.
