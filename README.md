@@ -280,3 +280,14 @@ the latter is **inconclusive**, not an offline verdict. The API is read-only
 and does not start the worker. Monitoring data is separate from manual
 positive-only discovery observations. Retention and dashboard display are
 future increments.
+
+### Plusnet Hub Two inventory parser (experimental)
+
+The `networkbridge.plusnet_inventory.parse_inventory` parser accepts a bounded
+`known_device_list` JavaScript response from `/cgi/cgi_basicMyDevice.js`.
+It never executes JavaScript and returns one record per MAC/interface, including
+router-reported activity and DHCP/static classification. These observations are
+**not** proof of online status or a complete DHCP lease table. This increment
+is parser-only: it does not authenticate to the router, poll the endpoint,
+store inventory or enable any automatic collection. Authentication and TLS
+session handling require separate verification before enabling the collector.
