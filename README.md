@@ -269,3 +269,14 @@ results, sends no notifications and never asserts that a device is offline.
 Repeated missing TCP responses are logged as inconclusive evidence only.
 Do not deploy or schedule this worker until the operator has authorised the
 specific targets and understands the traffic generated.
+
+## Device monitoring history
+
+When the separate opt-in monitoring worker runs, each configured target's
+TCP response result is recorded in SQLite. `GET /api/devices/monitoring-history`
+returns the latest 100 checks (maximum 500) and accepts optional `address`
+and `limit` filters. Results are `tcp_responded` or `no_tcp_response`;
+the latter is **inconclusive**, not an offline verdict. The API is read-only
+and does not start the worker. Monitoring data is separate from manual
+positive-only discovery observations. Retention and dashboard display are
+future increments.
