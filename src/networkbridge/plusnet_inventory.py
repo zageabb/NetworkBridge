@@ -25,7 +25,8 @@ def _objects(raw: str) -> list[str]:
     start = -1
     quote = ""
     escaped = False
-    for char in raw[match.end():]:
+    for index in range(match.end(), len(raw)):
+        char = raw[index]
         if quote:
             if escaped:
                 escaped = False
@@ -33,26 +34,23 @@ def _objects(raw: str) -> list[str]:
                 escaped = True
             elif char == quote:
                 quote = ""
-        elif char in ("'", '"'):
+            continue
+        if char in ("'", '"'):
             quote = char
         elif char == "{":
             if depth == 0:
-                start = len(items)  # overwritten below by buffer creation
-                buffer = []
+                start = index + 1
             depth += 1
         elif char == "}":
             depth -= 1
             if depth < 0:
                 raise ValueError("Invalid device object")
             if depth == 0:
-                items.append("".join(buffer))
+                items.append(raw[start:index])
                 if len(items) > MAX_DEVICES:
                     raise ValueError("Too many devices")
         elif char == "]" and depth == 0:
             return items
-        if depth > 0 and char != "{" or depth == 0 and char == "}" and start >= 0:
-            if depth > 0:
-                buffer.append(char)
     raise ValueError("Unterminated device list")
 
 
