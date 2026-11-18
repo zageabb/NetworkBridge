@@ -88,3 +88,29 @@ test("device history selector requests server-side IP filter and limit", async (
       && parsed.searchParams.get("limit") === "25";
   })).toBe(true));
 });
+
+test("Devices screen distinguishes inconclusive TCP checks from offline status", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    const path = new URL(url).pathname;
+    if (path.endsWith("/health") && !path.includes("/server/")) {
+      return new Response(JSON.stringify({ status: "ok" }));
+    }
+    if (path.endsWith("/status")) {
+      return new Response(JSON.stringify({ router_collection: "disabled", database: "initialized", wan_history: "no_measurements" }));
+    }
+    if (path.endsWith("/wan/history")) {
+      return new Response(JSON.stringify({ samples: [], count: 0 }));
+    }
+    if (path.endsWith("/devices/monitoring-history")) {
+      return new Response(JSON.stringify({ collection: "opt_in_tcp_checks", checks: [
+        { address: "192.168.1.10", checked_at: "2026-11-18T05:00:00+00:00", result: "no_tcp_response", availability_verdict: "not_evaluated" }
+      ] }));
+    }
+    return new Response("{}", { status: 503 });
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Devices" }));
+  expect(await screen.findByText("No TCP response (inconclusive)")).toBeTruthy();
+  expect(screen.getByText("Not evaluated")).toBeTruthy();
+  expect(screen.getByText("192.168.1.10")).toBeTruthy();
+});
