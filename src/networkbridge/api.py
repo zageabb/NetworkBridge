@@ -17,6 +17,7 @@ from networkbridge.devices import list_devices
 from networkbridge.discovery import scan
 from networkbridge.environment import environment_report
 from networkbridge.identity import correlate
+from networkbridge.monitoring import monitoring_preflight
 from networkbridge.neighbours import neighbours
 from networkbridge.observations import (
     monitoring_readiness,
@@ -257,6 +258,16 @@ def observations(limit: int = 250) -> dict[str, object]:
             "collection": "positive_tcp_observations",
             "recency_window_minutes": settings.device_recency_minutes,
             "note": "Recency reflects last successful TCP probe, not current online status"}
+
+
+@app.get("/api/devices/monitoring-preflight")
+def device_monitoring_preflight() -> dict[str, object]:
+    return monitoring_preflight(
+        settings.device_monitoring_enabled,
+        settings.device_monitoring_targets,
+        settings.device_monitoring_interval_seconds,
+        settings.device_monitoring_failure_threshold,
+    )
 
 
 @app.get("/api/devices/monitoring-readiness")

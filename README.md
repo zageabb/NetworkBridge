@@ -244,3 +244,14 @@ It reports `availability_verdict=not_evaluated` and
 TCP evidence. Discovery remains manually initiated and opt-in. Future active
 monitoring must define explicit targets, frequency, repeated failures,
 maintenance windows, and alert opt-in before generating outage warnings.
+
+## Device monitoring preflight (no automatic probes)
+
+Configuration keys: `NETWORKBRIDGE_DEVICE_MONITORING_ENABLED` (default false),
+`NETWORKBRIDGE_DEVICE_MONITORING_TARGETS` (comma-separated RFC1918 IPv4 addresses,
+maximum 32), `NETWORKBRIDGE_DEVICE_MONITORING_INTERVAL_SECONDS` (30–3600,
+default 60), and `NETWORKBRIDGE_DEVICE_MONITORING_FAILURE_THRESHOLD` (2–10,
+default 3). `GET /api/devices/monitoring-preflight` validates these settings
+without contacting devices. **Even when enabled, this release performs no
+background probes, notifications or offline classification.** A later separate
+worker and explicit alert controls are required.

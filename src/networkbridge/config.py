@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     active_discovery_cidr: str = ""
     device_recency_minutes: int = Field(default=15, ge=1, le=1440)
     device_event_retention_days: int = Field(default=0, ge=0, le=3650)
+    device_monitoring_enabled: bool = False
+    device_monitoring_targets: str = ""
+    device_monitoring_interval_seconds: int = Field(default=60, ge=30, le=3600)
+    device_monitoring_failure_threshold: int = Field(default=3, ge=2, le=10)
     memory_alert_percent: float = 85.0
     disk_alert_percent: float = 90.0
     static_dir: Path = Path(__file__).resolve().parents[2] / "ui" / "dist"
