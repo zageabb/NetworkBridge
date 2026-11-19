@@ -310,3 +310,21 @@ trusted router certificate. The client does **not** run automatically, change
 router configuration, persist devices, or expose a public API endpoint.
 The login sequence is tested against a mock router, not verified on physical
 Hub Two firmware; deployment must remain disabled pending hardware validation.
+
+### Opt-in Plusnet inventory snapshot (experimental)
+
+Configure privately on the NetworkBridge host, never in GitHub:
+
+```sh
+NETWORKBRIDGE_PLUSNET_INVENTORY_ENABLED=true
+NETWORKBRIDGE_PLUSNET_ADMIN_PASSWORD=<router-admin-password>
+# Existing NETWORKBRIDGE_ROUTER_URL and NETWORKBRIDGE_ROUTER_TLS_CERTIFICATE apply
+python -m networkbridge.plusnet_inventory_worker
+```
+
+The command performs **one** router inventory read and saves the snapshot to
+SQLite. It does not schedule repeated logins or router configuration changes.
+The dashboard can read stored data at `GET /api/devices/router-inventory`.
+The endpoint returns disabled unless the explicit inventory flag is enabled.
+Authentication has only been tested with a mock Hub Two, so verify against
+physical hardware and its TLS certificate before enabling this command.
