@@ -1,7 +1,6 @@
 """Read-only query and explicit-write persistence for Hub Two inventory snapshots."""
 from __future__ import annotations
 
-import json
 import sqlite3
 from datetime import UTC, datetime
 
