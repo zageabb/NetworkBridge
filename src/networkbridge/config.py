@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     router_url: str = "https://192.168.1.254"
     router_tls_certificate: Path | None = None
     router_polling_enabled: bool = False
+    plusnet_inventory_enabled: bool = False
+    plusnet_admin_password: str | None = None
     wan_retention_days: int = Field(default=0, ge=0, le=3650)
     neighbour_discovery_enabled: bool = False
     device_alias_writes_enabled: bool = False
