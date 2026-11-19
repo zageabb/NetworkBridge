@@ -273,6 +273,18 @@ export function App() {
           ["Monitoring", environment.monitoring_mode],
         ] as [string,string][]).map(([name,value]) => <tr key={name}><th scope="row">{name}</th><td>{value}</td></tr>)}</tbody></table></div>
         : <div className="empty">Environment inventory unavailable.</div>}</section>}
+      {page === "Devices" && <section><h2>Plusnet Hub Two router inventory</h2>
+        <p>Stored router snapshot only; router-reported activity does not prove that a device is currently online. Collection requires explicit server configuration and a separate one-shot run.</p>
+        <p>Collection: {routerInventory?.collection ?? "unavailable"} · Interfaces: {routerInventory?.devices.length ?? "—"}</p>
+        {routerInventory?.devices.length ? <div className="table-scroll"><table><thead><tr>
+          <th>Name</th><th>IP address</th><th>MAC address</th><th>Connection</th><th>Assignment</th><th>Router activity</th><th>Collected</th>
+        </tr></thead><tbody>{routerInventory.devices.map(device => <tr key={device.mac}>
+          <td>{device.name || device.hostname || "Unnamed"}</td><td>{device.ip || "—"}</td>
+          <td>{device.mac}</td><td>{device.connection.replaceAll("_", " ")}</td>
+          <td>{device.address_assignment}</td><td>{device.router_active ? "Reported active" : "Not reported active"}</td>
+          <td>{device.collected_at}</td>
+        </tr>)}</tbody></table></div> : <div className="empty">No stored router inventory available.</div>}
+      </section>}
       {page === "Devices" && <><section><h2>Device monitoring readiness</h2>
         <p>Observation evidence only. Availability checks and device alerts are not enabled; an old observation does not mean a device is offline.</p>
         <p>State: {monitoringReadiness?.state ?? "unavailable"} · Observed addresses: {monitoringReadiness?.observed_addresses ?? "—"} · Recent positive: {monitoringReadiness?.recent_positive ?? "—"} · Historical: {monitoringReadiness?.previously_observed ?? "—"}</p>
