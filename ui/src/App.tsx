@@ -22,6 +22,8 @@ type Neighbour = { name: string; address: string; mac: string; interface: string
 type NeighboursResponse = { devices: Neighbour[]; collection: string; source: string };
 type Device = { name: string; address: string | null; connection_type: string | null; last_seen: string | null; observed_at: string };
 type DeviceInventory = { devices: Device[]; collection: string };
+type RouterDevice = { mac: string; ip: string; hostname: string; name: string; connection: string; address_assignment: string; router_active: boolean; ipv4_active: boolean | null; collected_at: string };
+type RouterInventory = { devices: RouterDevice[]; collection: string; source: string; note?: string };
 type Environment = { operating_system: string; kernel: string; architecture: string; python_version: string; monitoring_mode: string };
 type Service = { name: string; port: number; state: string; probe: string };
 type ServerHealth = { uptime_seconds: number; memory: { total_bytes: number; used_bytes: number }; disk: { total_bytes: number; available_bytes: number }; cpu: { total_ticks: number; idle_ticks: number } };
@@ -68,6 +70,7 @@ export function App() {
   const [environment, setEnvironment] = React.useState<Environment | null>(null);
   const [devices, setDevices] = React.useState<DeviceInventory | null>(null);
   const [neighbours, setNeighbours] = React.useState<NeighboursResponse | null>(null);
+  const [routerInventory, setRouterInventory] = React.useState<RouterInventory | null>(null);
   const [discovered, setDiscovered] = React.useState<DiscoveryResult | null>(null);
   const [observations, setObservations] = React.useState<ObservationResponse | null>(null);
   const [monitoringReadiness, setMonitoringReadiness] = React.useState<MonitoringReadiness | null>(null);
@@ -124,7 +127,7 @@ export function App() {
     let active = true;
     async function refresh() {
       try {
-        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed, savedObservations, identifiedDevices, usageTotals, collectorState, monitoringState] = await Promise.all([
+        const [h, s, w, host, checks, inventory, deviceInventory, resourceAlerts, observed, savedObservations, identifiedDevices, usageTotals, collectorState, monitoringState, routerData] = await Promise.all([
           fetch(api("health")).then(r => { if (!r.ok) throw Error("Health API unavailable"); return r.json(); }),
           fetch(api("status")).then(r => { if (!r.ok) throw Error("Status API unavailable"); return r.json() as Promise<Status>; }),
           fetch(api("wan/history?limit=300")).then(async r => {
@@ -142,9 +145,10 @@ export function App() {
           fetch(api("wan/usage")).then(r => r.ok ? r.json() as Promise<Usage> : null).catch(() => null),
           fetch(api("wan/collector-health")).then(r => r.ok ? r.json() as Promise<CollectorHealth> : null).catch(() => null),
           fetch(api("devices/monitoring-readiness")).then(r => r.ok ? r.json() as Promise<MonitoringReadiness> : null).catch(() => null),
+          fetch(api("devices/router-inventory")).then(r => r.ok ? r.json() as Promise<RouterInventory> : null).catch(() => null),
 
         ]);
-        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.history?.samples ?? []); setWanError(w.error); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setObservations(savedObservations); setMonitoringReadiness(monitoringState); setIdentified(identifiedDevices); setUsage(usageTotals); setCollectorHealth(collectorState); setError("");
+        if (active) { setHealth(h.status); setStatus(s.router_collection); setHistory(w.history?.samples ?? []); setWanError(w.error); setServer(host); setServices(checks?.services ?? null); setEnvironment(inventory); setDevices(deviceInventory); setAlerts(resourceAlerts); setNeighbours(observed); setObservations(savedObservations); setMonitoringReadiness(monitoringState); setRouterInventory(routerData); setIdentified(identifiedDevices); setUsage(usageTotals); setCollectorHealth(collectorState); setError("");
           if (host) { const old = previousCpu.current; const dt = host.cpu.total_ticks - (old?.total_ticks ?? host.cpu.total_ticks); const di = host.cpu.idle_ticks - (old?.idle_ticks ?? host.cpu.idle_ticks); setCpuUsage(old && dt > 0 && di >= 0 && di <= dt ? 100 * (1 - di / dt) : null); previousCpu.current = host.cpu; } else { previousCpu.current = null; setCpuUsage(null); } }
       } catch (e) { if (active) setError(e instanceof Error ? e.message : "API unavailable"); }
       finally { if (active) setLoading(false); }
