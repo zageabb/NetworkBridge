@@ -1,0 +1,81 @@
+# DEV-020: review-only; neither database writes nor router polling are authorized.
+# Effective user/systemd units, data ownership and host port require read-only verification.
+schema_version: 2
+application:
+  name: networkbridge
+  kind: web
+  display_name: NetworkBridge
+source:
+  repository: zageabb/NetworkBridge
+  branch: main
+builds:
+  - name: backend-deps
+    toolchain: python
+    working_dir: .
+    commands:
+      - ["python3", "-m", "venv", ".venv"]
+      - [".venv/bin/python", "-m", "pip", "install", "-e", "."]
+  - name: frontend-build
+    toolchain: node
+    working_dir: ui
+    commands:
+      - ["npm", "ci"]
+      - ["npm", "run", "build"]
+services:
+  - name: api
+    role: web
+    runtime: python
+    working_dir: .
+    entrypoint: [".venv/bin/uvicorn", "networkbridge.api:app", "--host", "127.0.0.1", "--port", "8765"]
+    port: 8765
+    required_builds: [backend-deps, frontend-build]
+    restart: on-failure
+    environment_refs: [NETWORKBRIDGE_DATABASE_URL, NETWORKBRIDGE_STATIC_DIR]
+    health:
+      type: http
+      path: /api/health
+  - name: worker
+    role: worker
+    runtime: python
+    working_dir: .
+    entrypoint: [".venv/bin/python", "-m", "networkbridge.worker"]
+    depends_on: [api]
+    required_builds: [backend-deps]
+    restart: on-failure
+    environment_refs: [NETWORKBRIDGE_DATABASE_URL, NETWORKBRIDGE_ROUTER_POLLING_ENABLED]
+    health:
+      type: process
+health:
+  aggregate: all-required
+  required_services: [api, worker]
+  on_optional_failure: degraded
+  startup_timeout_seconds: 180
+proxy:
+  enabled: true
+  upstream: api
+  canonical_path: /apps/networkbridge/
+  authentication: uda
+environment:
+  required:
+    - NETWORKBRIDGE_DATABASE_URL
+    - NETWORKBRIDGE_STATIC_DIR
+    - NETWORKBRIDGE_ROUTER_POLLING_ENABLED
+  definitions:
+    - name: NETWORKBRIDGE_DATABASE_URL
+      source: config
+      phase: runtime
+    - name: NETWORKBRIDGE_STATIC_DIR
+      source: config
+      phase: runtime
+    - name: NETWORKBRIDGE_ROUTER_POLLING_ENABLED
+      source: config
+      phase: runtime
+deployment:
+  strategy: systemd
+  auto_update: false
+  rollback: false
+  github_reporting: false
+  approval: explicit
+  restart_order: [api, worker]
+lifecycle:
+  owner: networkbridge
