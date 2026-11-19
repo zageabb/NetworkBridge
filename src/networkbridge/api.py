@@ -20,7 +20,6 @@ from networkbridge.identity import correlate
 from networkbridge.monitor_history import recent_checks
 from networkbridge.monitoring import monitoring_preflight
 from networkbridge.neighbours import neighbours
-from networkbridge.plusnet_storage import recent_inventory
 from networkbridge.observations import (
     monitoring_readiness,
     observation_events,
@@ -29,6 +28,7 @@ from networkbridge.observations import (
     recent_observations,
     record_scan,
 )
+from networkbridge.plusnet_storage import recent_inventory
 from networkbridge.server import snapshot
 from networkbridge.services import check_services
 from networkbridge.storage import (
