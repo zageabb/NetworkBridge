@@ -20,6 +20,7 @@ from networkbridge.identity import correlate
 from networkbridge.monitor_history import recent_checks
 from networkbridge.monitoring import monitoring_preflight
 from networkbridge.neighbours import neighbours
+from networkbridge.plusnet_storage import recent_inventory
 from networkbridge.observations import (
     monitoring_readiness,
     observation_events,
@@ -186,6 +187,27 @@ def devices(limit: int = 250) -> dict[str, object]:
             return {"devices": [], "collection": "not_initialized"}
         raise HTTPException(status_code=503, detail="Device inventory unavailable") from None
     return {"devices": found, "collection": "stored_inventory"}
+
+
+
+@app.get("/api/devices/router-inventory")
+def router_inventory(limit: int = 250) -> dict[str, object]:
+    if not 1 <= limit <= 500:
+        raise HTTPException(status_code=422, detail="limit must be 1..500")
+    if not settings.plusnet_inventory_enabled:
+        return {"devices": [], "collection": "disabled", "source": "plusnet_hub_two"}
+    path = database_path(settings.database_url)
+    if not path.is_file():
+        return {"devices": [], "collection": "not_initialized", "source": "plusnet_hub_two"}
+    try:
+        with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)) as db:
+            devices = recent_inventory(db, limit)
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc):
+            return {"devices": [], "collection": "not_initialized", "source": "plusnet_hub_two"}
+        raise HTTPException(status_code=503, detail="Router inventory unavailable") from None
+    return {"devices": devices, "collection": "stored_snapshot", "source": "plusnet_hub_two",
+            "note": "Router-reported activity is not proof of current online status"}
 
 
 @app.get("/api/alerts")
