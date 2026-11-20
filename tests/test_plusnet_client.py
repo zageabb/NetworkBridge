@@ -92,3 +92,31 @@ def test_login_error_prevents_repeat():
             await client.close()
 
     asyncio.run(run())
+
+
+def test_embedded_login_error_does_not_retry():
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.path)
+        if request.url.path == "/login.cgi":
+            return httpx.Response(200, text="<html><script>login_lock</script></html>")
+        return httpx.Response(200, text="home")
+
+    async def run():
+        client = PlusnetHubTwoClient("https://192.168.1.254", "test123")
+        await client._client.aclose()
+        client._client = httpx.AsyncClient(
+            base_url="https://192.168.1.254",
+            transport=httpx.MockTransport(handler),
+        )
+        try:
+            with pytest.raises(RouterLoginError):
+                await client.login()
+            with pytest.raises(RouterLoginError):
+                await client.login()
+            assert calls.count("/login.cgi") == 1
+        finally:
+            await client.close()
+
+    asyncio.run(run())
