@@ -278,7 +278,7 @@ export function App() {
         <p>Collection: {routerInventory?.collection ?? "unavailable"} · Interfaces: {routerInventory?.devices.length ?? "—"}</p>
         {routerInventory?.devices.length ? <div className="table-scroll"><table><thead><tr>
           <th>Name</th><th>IP address</th><th>MAC address</th><th>Connection</th><th>Assignment</th><th>Router activity</th><th>Collected</th>
-        </tr></thead><tbody>{routerInventory.devices.map(device => <tr key={device.mac}>
+        </tr></thead><tbody>{routerInventory.devices.map(device => <tr key={device.mac + "|" + device.connection + "|" + device.ip}>
           <td>{device.name || device.hostname || "Unnamed"}</td><td>{device.ip || "—"}</td>
           <td>{device.mac}</td><td>{device.connection.replaceAll("_", " ")}</td>
           <td>{device.address_assignment}</td><td>{device.router_active ? "Reported active" : "Not reported active"}</td>

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS plusnet_inventory (
-    mac TEXT PRIMARY KEY,
+    mac TEXT NOT NULL,
     ip TEXT NOT NULL,
     hostname TEXT NOT NULL,
     name TEXT NOT NULL,
@@ -17,12 +17,32 @@ CREATE TABLE IF NOT EXISTS plusnet_inventory (
     ipv4_active INTEGER,
     first_seen TEXT,
     last_active TEXT,
-    collected_at TEXT NOT NULL
+    collected_at TEXT NOT NULL,
+    PRIMARY KEY (mac, port, ip)
 );
 """
 
 
 def ensure_schema(db: sqlite3.Connection) -> None:
+    existing = db.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='plusnet_inventory'"
+    ).fetchone()
+    if existing:
+        columns = db.execute("PRAGMA table_info(plusnet_inventory)").fetchall()
+        old_primary_key = [row[1] for row in columns if row[5] > 0]
+        if old_primary_key == ["mac"]:
+            with db:
+                db.execute("ALTER TABLE plusnet_inventory RENAME TO plusnet_inventory_old")
+                db.executescript(SCHEMA)
+                db.execute(
+                    """INSERT OR IGNORE INTO plusnet_inventory
+                       SELECT mac, ip, hostname, name, port, connection,
+                              address_assignment, router_active, ipv4_active,
+                              first_seen, last_active, collected_at
+                       FROM plusnet_inventory_old"""
+                )
+                db.execute("DROP TABLE plusnet_inventory_old")
+            return
     db.executescript(SCHEMA)
     db.commit()
 
