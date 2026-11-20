@@ -51,7 +51,7 @@ class PlusnetHubTwoClient:
             verify.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
         self._client = httpx.AsyncClient(
             base_url=url.rstrip("/"), timeout=5.0, follow_redirects=False,
-            verify=verify,
+            verify=verify, trust_env=False,
         )
         self._password = password
         self._logged_in = False
@@ -88,7 +88,9 @@ class PlusnetHubTwoClient:
             headers={"Referer": str(self._client.base_url) + "/"},
         )
         response.raise_for_status()
-        if response.text.strip() in {"login_error", "login_lock", "attack_error"}:
+        # Login errors may be embedded in a returned HTML page.
+        if any(marker in response.text.lower() for marker in
+               ("login_error", "login_lock", "attack_error")):
             raise RouterLoginError("Router rejected login or is locked")
         self._logged_in = True
 
