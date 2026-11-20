@@ -328,3 +328,17 @@ The dashboard can read stored data at `GET /api/devices/router-inventory`.
 The endpoint returns disabled unless the explicit inventory flag is enabled.
 Authentication has only been tested with a mock Hub Two, so verify against
 physical hardware and its TLS certificate before enabling this command.
+
+### Plusnet hardware-readiness preflight
+
+Before running any inventory collection on the server, run:
+
+```sh
+python -m networkbridge.plusnet_inventory_worker --preflight
+```
+
+This command inspects configuration **offline**: it does not contact the router,
+submit a password, change settings, or save inventory. It reports generic issue
+codes only, never the configured password. A state of
+`ready_for_manual_hardware_test` is not proof that router login works.
+Only after a deliberate hardware test should a one-shot collection be attempted.
