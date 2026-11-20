@@ -1,13 +1,16 @@
 """Run one opt-in Hub Two inventory snapshot; never starts an automatic poller."""
 from __future__ import annotations
 
+import argparse
 import asyncio
+import json
 import logging
 import sqlite3
 
 from networkbridge.config import settings
 from networkbridge.database import database_path, initialize_database
 from networkbridge.plusnet_client import PlusnetHubTwoClient
+from networkbridge.plusnet_preflight import readiness
 from networkbridge.plusnet_storage import save_inventory
 
 logger = logging.getLogger(__name__)
@@ -33,6 +36,17 @@ async def collect_once() -> int:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Experimental Plusnet inventory snapshot")
+    parser.add_argument("--preflight", action="store_true",
+                        help="Check configuration without contacting the router")
+    args = parser.parse_args()
+    if args.preflight:
+        result = readiness(
+            settings.plusnet_inventory_enabled, settings.router_url,
+            settings.plusnet_admin_password, settings.router_tls_certificate,
+        )
+        print(json.dumps(result, indent=2))
+        return
     try:
         count = asyncio.run(collect_once())
     except Exception:
